@@ -10,7 +10,7 @@ werden pro Spiel gespeichert und beim nächsten Start automatisch wieder angewen
 
 ## Screenshot
 
-![FrameBouncer-Oberfläche](docs/screenshot.png)
+![FrameBouncer-Oberfläche](docs/screenshot-v2.png)
 
 ## Installation
 

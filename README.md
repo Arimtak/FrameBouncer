@@ -10,7 +10,7 @@ the next time the game starts.
 
 ## Screenshot
 
-![FrameBouncer UI](docs/screenshot.png)
+![FrameBouncer UI](docs/screenshot-v2.png)
 
 ## Installation
 
