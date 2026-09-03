@@ -1422,12 +1422,17 @@ public class MainViewModel : INotifyPropertyChanged
         PointOnePercentLowDisplay = FormatLow(_lowCalculator.ComputePointOnePercentLow());
     }
 
+    // Feste deutsche Kultur für alle Anzeigeformate: Die UI ist deutsch und die
+    // Tests erwarten „8,33 ms“ – unabhängig von der Systemkultur des Rechners
+    // (CI-/englische Systeme dürfen nicht „8.33 ms“ anzeigen).
+    private static readonly CultureInfo DisplayCulture = CultureInfo.GetCultureInfo("de-DE");
+
     private static string FormatFps(double fps) =>
-        Math.Round(fps, 0).ToString("F0", CultureInfo.CurrentCulture);
+        Math.Round(fps, 0).ToString("F0", DisplayCulture);
 
     private static string FormatFrameTime(double frameTimeMs, FrameTimeSource source)
     {
-        string value = frameTimeMs.ToString("F2", CultureInfo.CurrentCulture) + " ms";
+        string value = frameTimeMs.ToString("F2", DisplayCulture) + " ms";
         // "≈" kennzeichnet: aus FPS berechnet, nicht gemessen (Punkt 2).
         return source == FrameTimeSource.Derived ? "≈ " + value : value;
     }
@@ -1435,7 +1440,7 @@ public class MainViewModel : INotifyPropertyChanged
     private static string FormatLow(double? lowFps) =>
         lowFps is null
             ? NoDataLowText
-            : Math.Round(lowFps.Value, 0).ToString("F0", CultureInfo.CurrentCulture) + " FPS";
+            : Math.Round(lowFps.Value, 0).ToString("F0", DisplayCulture) + " FPS";
 
     #endregion
 
