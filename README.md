@@ -6,6 +6,10 @@ pro Spiel gespeichert und beim nächsten Start automatisch wieder angewendet.
 
 **Frei nutzbar für alle** – MIT-Lizenz (siehe [LICENSE](LICENSE)).
 
+## Screenshot
+
+![FrameBouncer-Oberfläche](docs/screenshot.png)
+
 ## Installation
 
 1. Lade die neueste Version unter **GitHub Releases** herunter:

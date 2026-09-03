@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:oxy="http://oxyplot.org/wpf"
         xmlns:viewModels="clr-namespace:FrameBouncer.ViewModels"
+        xmlns:services="clr-namespace:FrameBouncer.Services"
         mc:Ignorable="d"
         Title="FrameBouncer"
         Icon="pack://application:,,,/app.ico"
@@ -116,7 +117,13 @@
                                FontSize="13"
                                Foreground="{StaticResource TextPrimary}"
                                VerticalAlignment="Center"
-                               Margin="0,0,5,0" />
+                               Margin="0,0,4,0" />
+                    <!-- Produktversion (zentrale Quelle: AppVersion.Current) -->
+                    <TextBlock Text="{x:Static services:AppVersion.Current}"
+                               FontSize="9"
+                               Foreground="{StaticResource TextMuted}"
+                               VerticalAlignment="Center"
+                               Margin="0,2,0,0" />
                     <!-- Simulation-Badge (nur sichtbar im Simulationsmodus) -->
                     <Border Background="#253545"
                             CornerRadius="3"

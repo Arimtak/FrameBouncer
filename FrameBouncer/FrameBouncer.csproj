@@ -15,7 +15,7 @@
 
     <!-- Zentrale Versionsquelle (Update-Spec Punkt 3): eine einzige Produktversion
          für Assembly-, File-, Produktversion, Release-Asset und Update-Checker. -->
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
