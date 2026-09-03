@@ -1,54 +1,64 @@
 # FrameBouncer
 
-Ein kleines Windows-Programm, um die **FPS in Spielen zu begrenzen** (z. B. 60, 120 oder 144),
-damit der PC ruhiger läuft, kühler bleibt und weniger Strom verbraucht. Die Einstellungen werden
-pro Spiel gespeichert und beim nächsten Start automatisch wieder angewendet.
+**English | [Deutsch](README.de.md)**
 
-**Frei nutzbar für alle** – MIT-Lizenz (siehe [LICENSE](LICENSE)).
+A small Windows tool that **limits FPS in games** (e.g. 60, 120 or 144), so your PC runs
+quieter, cooler and uses less power. Settings are saved per game and applied automatically
+the next time the game starts.
+
+**Free for everyone** – MIT license (see [LICENSE](LICENSE)).
 
 ## Screenshot
 
-![FrameBouncer-Oberfläche](docs/screenshot.png)
+![FrameBouncer UI](docs/screenshot.png)
 
 ## Installation
 
-1. Lade die neueste Version unter **GitHub Releases** herunter:
+1. Download the latest version from **GitHub Releases**:
    `FrameBouncer-vX.Y.Z-win-x64.zip`
-2. Entpacke das ZIP in einen beliebigen Ordner (z. B. `D:\Tools\FrameBouncer`).
-3. **RTSS** (RivaTuner Statistics Server, gratis auf guru3d.com) installieren und starten –
-   ohne RTSS kann FrameBouncer kein FPS-Limit setzen.
-4. `FrameBouncer.exe` starten – fertig, keine Installation nötig.
+2. Extract the ZIP to any folder (e.g. `D:\Tools\FrameBouncer`) – it is a **single portable
+   EXE** (`FrameBouncer.exe`); you can copy the file anywhere (Desktop, USB stick).
+3. Install and start **RTSS** (RivaTuner Statistics Server, free at guru3d.com) – without
+   RTSS, FrameBouncer cannot set an FPS limit.
+4. Start `FrameBouncer.exe` – done, no installation required.
 
-> Beim allerersten „Apply" kann einmal ein Windows-Sicherheitsfenster (UAC) erscheinen.
-> Danach fragt FrameBouncer nie wieder.
+> On the very first **Apply**, a Windows security prompt (UAC) may appear once.
+> After that, FrameBouncer never asks again.
 
-## Bedienung
+## Usage
 
-1. **Spiel auswählen:** Wähle dein laufendes Spiel aus der Liste oben (oder klicke auf
-   **Fenster auswählen** und dann ins Spiel).
-2. **FPS einstellen:** Wert eintippen oder Schnellwahl nutzen (30 / 60 / 120 / 144).
-3. **Apply drücken** – das Spiel ist ab sofort begrenzt.
+1. **Select a game:** Choose your running game from the list at the top (or click
+   **Pick window** and then click the game).
+2. **Set FPS:** Type a value or use the presets (30 / 60 / 120 / 144).
+3. **Press Apply** – the game is now limited.
 
-Das Profil wird automatisch gespeichert: Beim nächsten Start des Spiels gilt das Limit
-wieder von selbst. Schließt du FrameBouncer, werden alle Limits wieder aufgehoben.
+The profile is saved automatically: the next time the game starts, the limit applies on its
+own. When you close FrameBouncer, all limits are removed again.
 
-| Symbol / Button | Bedeutung |
+| Icon / Button | Meaning |
 |---|---|
-| 📌 **Pin** | Fenster immer im Vordergrund |
-| **Autostart** | Startet automatisch mit Windows |
-| 🔔 **Tray** | Läuft nach ✕ im Infobereich weiter |
-| ⭳ **Backup** / ⭱ **Restore** | Profile sichern / wiederherstellen |
-| ⟳ **Updates** | Nach neuer Version suchen |
+| 📌 **Pin** | Keep the window always on top |
+| **Autostart** | Start automatically with Windows |
+| 🔔 **Tray** | Keeps running in the notification area after ✕ |
+| ⭳ **Backup** / ⭱ **Restore** | Save / restore profiles |
+| ⟳ **Updates** | Check for a new version |
 
-Unten zeigt das Programm live FPS, Frametime, 1%-/0,1%-Low und (wenn MSI Afterburner läuft)
-GPU-/CPU-Temperatur.
+At the bottom, the program shows live FPS, frame time, 1% / 0.1% lows and (if MSI
+Afterburner is running) GPU / CPU temperature.
 
-## Deinstallieren
+## Language
 
-Einfach den Ordner löschen. In `%APPDATA%\FrameBouncer` liegen nur die eigenen Einstellungen –
-auch die kann man löschen.
+Switch between **English** and **Deutsch** in the header of the app. The selection is saved
+and restored on the next start. Settings and profiles are not affected by switching.
 
-## Lizenz
+## Uninstall
 
-[MIT](LICENSE) – du darfst das Programm frei nutzen, kopieren, verändern und weitergeben.
-Entwickler-Details: [docs/architecture.md](docs/architecture.md).
+Simply delete the EXE. Your settings and profiles are stored under
+`Documents\FrameBouncer` (`settings.json`, `Backups\`, `Updates\`) – you can delete that
+folder too. The EXE itself stays portable: all data always lives in your documents, never
+next to the EXE.
+
+## License
+
+[MIT](LICENSE) – you may freely use, copy, modify and redistribute the program.
+Developer details: [docs/architecture.md](docs/architecture.md).
