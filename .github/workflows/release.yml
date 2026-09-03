@@ -26,8 +26,10 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Restore
-        run: dotnet restore FrameBouncer.sln
+      - name: Restore (mit RID für self-contained Publish)
+        # RID beim Restore nötig: sonst fehlt in project.assets.json das
+        # Ziel net8.0-windows/win-x64 und der Publish bricht mit NETSDK1047 ab.
+        run: dotnet restore FrameBouncer.sln -r win-x64
 
       - name: Build (Release)
         run: dotnet build FrameBouncer.sln -c Release --no-restore
