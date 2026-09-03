@@ -1,5 +1,73 @@
 # FrameBouncer (WPF / .NET 8 / MVVM)
 
+> 🎮 **Für Freunde & Tester – kurz erklärt:** FrameBouncer ist ein kleines Windows-Programm,
+> mit dem du die FPS (Bilder pro Sekunde) deiner Spiele fest begrenzen kannst – z. B. auf
+> 60, 120 oder 144 FPS – damit dein PC ruhiger läuft, kühler bleibt und weniger Strom
+> verbraucht. Es nutzt dafür **RTSS** (RivaTuner Statistics Server), das viele Gamer eh
+> schon installiert haben.
+>
+> Wie du es bedienst, steht unten unter **▶ So benutzt du FrameBouncer**.
+
+---
+
+## ▶ So benutzt du FrameBouncer (Kurzanleitung)
+
+### 1. Installieren (einmalig)
+
+1. Lade die neueste Version von den **GitHub Releases** herunter:
+   `FrameBouncer-vX.Y.Z-win-x64.zip`.
+2. Entpacke das ZIP in einen beliebigen Ordner (z. B. `D:\Tools\FrameBouncer`).
+3. **Wichtig:** Installiere und starte **RTSS** (gratis unter guru3d.com, „RivaTuner
+   Statistics Server") – ohne RTSS kann FrameBouncer kein FPS-Limit setzen.
+4. Starte `FrameBouncer.exe`. Keine Installation nötig, das Programm ist portabel.
+
+> Beim allerersten „Apply“ kann einmal ein **Windows-Sicherheitsfenster (UAC)** erscheinen.
+> Das ist normal: FrameBouncer darf dann einmalig die RTSS-Profil-Datei schreiben.
+> Danach fragt es **nie wieder** – auch beim Beenden nicht.
+
+### 2. Ein Spiel begrenzen (in 10 Sekunden)
+
+1. **Spiel auswählen:** Klappe die Liste oben auf – dort stehen alle gerade sichtbaren
+   Programme/Spiele. Wähle dein Spiel aus (oder klicke auf **Fenster auswählen** und dann
+   ins Spiel hinein).
+2. **FPS einstellen:** Tippe den Wert ein (z. B. `60`) oder klicke eine Schnellwahl
+   (30 / 60 / 120 / 144).
+3. **Apply drücken** – fertig. Das Spiel ist jetzt auf diese FPS begrenzt und das Profil
+   wird **gespeichert**.
+
+### 3. Was automatisch passiert
+
+- **Profil merken:** Für jede EXE (z. B. `Cyberpunk2077.exe`) wird gespeichert, welches
+  FPS-Limit du eingestellt hast. **Beim nächsten Start des Spiels wird das Limit automatisch
+  wieder angewendet** – du musst nichts mehr tun.
+- **Beim Beenden:** Schließt du FrameBouncer, werden alle gesetzten Limits wieder
+  aufgehoben – deine Spiele laufen danach wieder normal (unbegrenzt).
+- **Monitoring:** Unten siehst du live FPS, Frametime, 1%-/0,1%-Low und (falls
+  MSI Afterburner läuft) GPU-/CPU-Temperatur.
+- **Keine Sorge:** FrameBouncer verändert keine Spieldateien, keine Treiber-Einstellungen
+  und nichts an deinem System – es schreibt nur die RTSS-Profil-Datei.
+
+### 4. Nützliches im Überblick
+
+| Symbol / Button | Bedeutung |
+|---|---|
+| 📌 **Pin** | Fenster immer im Vordergrund halten |
+| **Autostart** | FrameBouncer startet automatisch mit Windows |
+| 🔔 **Tray** | Beim Schließen (✕) im Infobereich weiterlaufen |
+| ⭳ **Backup** / ⭱ **Restore** | Gespeicherte Profile sichern bzw. wiederherstellen |
+| ⟳ **Updates** | Nach einer neuen Version suchen (GitHub) |
+| **Smart-Cap** (Vorschlag) | Empfehlung neben „Apply“ (z. B. 117 FPS auf 120-Hz-Monitor);
+  „Übernehmen“ setzt nur das Feld, „Apply“ schreibt es |
+
+### 5. Deinstallieren
+
+Einfach den Ordner löschen. In `%APPDATA%\FrameBouncer` liegen nur deine Einstellungen
+(`settings.json`) – die kannst du auch löschen, dann startet FrameBouncer frisch.
+
+---
+
+## Für Entwickler & Details
+
 Minimalistisches Windows-Utility für FPS-Limitierung, Frametime-Monitoring und Temperaturüberwachung
 über **RTSS** (RivaTuner Statistics Server) und **MSI Afterburner**.
 
