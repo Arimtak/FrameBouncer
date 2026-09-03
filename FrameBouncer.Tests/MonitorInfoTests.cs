@@ -163,7 +163,7 @@ public class MonitorInfoTests
 
         var vm = CreateViewModel(service);
 
-        Assert.Equal("Unbekannt", vm.MonitorRefreshRateDisplay);
+        Assert.Equal("Unknown", vm.MonitorRefreshRateDisplay);
     }
 
     // --- 8: Nicht verfügbare Daten → Unbekannt -------------------------------
@@ -177,7 +177,7 @@ public class MonitorInfoTests
 
         var vm = CreateViewModel(service);
 
-        Assert.Equal("Unbekannt", vm.MonitorRefreshRateDisplay);
+        Assert.Equal("Unknown", vm.MonitorRefreshRateDisplay);
     }
 
     [Fact]
@@ -201,7 +201,7 @@ public class MonitorInfoTests
 
         var vm = CreateViewModel(service);
 
-        Assert.Equal("Unbekannt", vm.MonitorRefreshRateDisplay);
+        Assert.Equal("Unknown", vm.MonitorRefreshRateDisplay);
     }
 
     // --- 9: Mehrere Monitore — primär als Fallback, kein Zufall --------------

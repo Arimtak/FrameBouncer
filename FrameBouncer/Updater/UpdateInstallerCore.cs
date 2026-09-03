@@ -34,8 +34,8 @@ public sealed record UpdateInstallResult
 /// die zu ersetzenden Dateien, ersetzt atomar pro Datei (Punkt 12), startet die
 /// App neu und stellt bei jedem Fehler die alte Version wieder her (Rollback,
 /// Punkt 13). Fasst AUSSCHLIESSLICH Dateien an, die im Update-Paket enthalten
-/// sind – settings.json (%APPDATA%), Backups, Logs und Benutzerdaten bleiben
-/// unberührt (Punkt 11/26).
+/// sind – settings.json (Dokumente\FrameBouncer), Backups, Logs und Benutzerdaten
+/// bleiben unberührt (Punkt 11/26).
 /// </summary>
 public static class UpdateInstallerCore
 {
@@ -83,23 +83,23 @@ public static class UpdateInstallerCore
         try
         {
             if (string.IsNullOrWhiteSpace(installDir) || !Directory.Exists(installDir))
-                return Fail("Installationsverzeichnis fehlt – Update abgebrochen.");
+                return Fail(Localization.T("Update.InstallDirMissing"));
             if (string.IsNullOrWhiteSpace(packageZip) || !File.Exists(packageZip))
-                return Fail("Update-Paket fehlt – Update abgebrochen.");
+                return Fail(Localization.T("Update.PackageMissingCore"));
             if (string.IsNullOrWhiteSpace(appExeName))
-                return Fail("Ungültiger App-Name.");
+                return Fail(Localization.T("Update.InvalidAppName"));
 
             // 1. Warten, bis die App wirklich beendet ist (Punkt 14) – keine feste Sekundenzahl.
             string appExePath = Path.Combine(installDir, appExeName);
             if (!waiter.WaitForExit(appProcessName, appExePath, exitTimeout))
-                return Fail("FrameBouncer wurde nicht beendet – Update abgebrochen.");
+                return Fail(Localization.T("Update.AppNotExited"));
 
             // 2. Paket validieren + in Staging entpacken (Path-Traversal-Schutz, Punkt 25)
             stagingRoot = Path.Combine(Path.GetTempPath(), "FrameBouncer-Update-" + Guid.NewGuid().ToString("N"));
             if (!TryExtractValidated(packageZip, stagingRoot, out entries, out var extractError))
-                return Fail(extractError ?? "Update-Paket konnte nicht gelesen werden.");
+                return Fail(extractError ?? Localization.T("Update.PackageReadFailed"));
             if (entries.Count == 0)
-                return Fail("Update-Paket enthält keine Dateien.");
+                return Fail(Localization.T("Update.NoFiles"));
 
             // 3. Backup der zu ersetzenden Dateien (Punkt 12)
             if (Directory.Exists(backupDir)) Directory.Delete(backupDir, recursive: true);
@@ -111,9 +111,9 @@ public static class UpdateInstallerCore
 
             // 5. App neu starten (Punkt 15)
             if (!File.Exists(appExePath))
-                throw new InvalidOperationException("FrameBouncer.exe fehlt nach dem Update.");
+                throw new InvalidOperationException(Localization.T("Update.AppMissingAfterUpdate"));
             if (!starter.Start(appExePath, installDir))
-                throw new InvalidOperationException("App konnte nach dem Update nicht gestartet werden.");
+                throw new InvalidOperationException(Localization.T("Update.AppStartFailed"));
 
             // 6. Start überwachen; Start schlägt fehl → Rollback (Punkt 13)
             if (!waiter.WaitForStart(appProcessName, startTimeout))
@@ -123,14 +123,14 @@ public static class UpdateInstallerCore
                 {
                     Success = false,
                     RolledBack = true,
-                    Message = "Update startete nicht – die alte Version wurde wiederhergestellt."
+                    Message = Localization.T("Update.StartFailedRolledBack")
                 };
             }
 
             return new UpdateInstallResult
             {
                 Success = true,
-                Message = $"Update erfolgreich installiert ({backedUp} Dateien ersetzt)."
+                Message = Localization.TFmt("Update.SuccessFmt", backedUp)
             };
         }
         catch (UnauthorizedAccessException)
@@ -148,7 +148,7 @@ public static class UpdateInstallerCore
             {
                 Success = false,
                 RolledBack = true,
-                Message = "Installation fehlgeschlagen – die alte Version wurde wiederhergestellt. " + ex.Message
+                Message = Localization.TFmt("Update.InstallFailedRolledBackFmt", ex.Message)
             };
         }
         finally
@@ -184,7 +184,7 @@ public static class UpdateInstallerCore
                 var rel = entry.FullName.Replace('/', Path.DirectorySeparatorChar);
                 if (!IsSafeRelativePath(rel))
                 {
-                    error = "Update-Paket enthält einen unsicheren Pfad und wurde abgelehnt.";
+                    error = Localization.T("Update.UnsafePath");
                     return false;
                 }
 
@@ -199,7 +199,7 @@ public static class UpdateInstallerCore
         }
         catch
         {
-            error = "Update-Paket konnte nicht gelesen werden.";
+            error = Localization.T("Update.PackageReadFailed");
             return false;
         }
     }
@@ -278,7 +278,13 @@ public static class UpdateInstallerCore
     }
 }
 
-/// <summary>Echte Prozess-Synchronisation (Punkt 14): Prozess weg + EXE nicht gesperrt.</summary>
+/// <summary>
+/// Echte Prozess-Synchronisation (Punkt 14): Prozess weg + EXE nicht gesperrt.
+///
+/// SINGLE-EXE-HINWEIS: Der Updater läuft selbst als FrameBouncer.exe (Temp-Kopie).
+/// Die eigene PID wird deshalb bei der Prozesssuche IMMER ausgeschlossen – sonst
+/// würde sich der Updater selbst als "noch laufende App" zählen und nie fortfahren.
+/// </summary>
 public sealed class RealProcessWaiter : IUpdateProcessWaiter
 {
     public bool WaitForExit(string processName, string exePath, TimeSpan timeout)
@@ -286,11 +292,7 @@ public sealed class RealProcessWaiter : IUpdateProcessWaiter
         var sw = Stopwatch.StartNew();
         while (sw.Elapsed < timeout)
         {
-            bool running = false;
-            try { running = Process.GetProcessesByName(processName).Length > 0; }
-            catch { running = false; }
-
-            if (!running && !IsFileLocked(exePath)) return true;
+            if (!IsOtherProcessRunning(processName) && !IsFileLocked(exePath)) return true;
             Thread.Sleep(500);
         }
         return false;
@@ -302,9 +304,7 @@ public sealed class RealProcessWaiter : IUpdateProcessWaiter
         int consecutive = 0;
         while (sw.Elapsed < timeout)
         {
-            bool running = false;
-            try { running = Process.GetProcessesByName(processName).Length > 0; }
-            catch { running = false; }
+            bool running = IsOtherProcessRunning(processName);
 
             consecutive = running ? consecutive + 1 : 0;
             // 3 aufeinanderfolgende Beobachtungen (~1,5 s) = Prozess überlebt den Start.
@@ -312,6 +312,20 @@ public sealed class RealProcessWaiter : IUpdateProcessWaiter
             Thread.Sleep(500);
         }
         return false;
+    }
+
+    /// <summary>Läuft außer dem eigenen Prozess noch ein Prozess mit diesem Namen?</summary>
+    private static bool IsOtherProcessRunning(string processName)
+    {
+        try
+        {
+            int ownPid = Environment.ProcessId;
+            return Process.GetProcessesByName(processName).Any(p => p.Id != ownPid);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool IsFileLocked(string path)

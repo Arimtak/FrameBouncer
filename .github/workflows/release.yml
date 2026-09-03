@@ -1,9 +1,9 @@
 name: Release
 
-# Release-Workflow (Spec Punkt 22): Ein Tag vX.Y.Z löst Build → Tests →
-# self-contained Publish (win-x64) → Release-Paket (zip + sha256) →
-# GitHub-Release aus. Das Release wird NUR erstellt, wenn Build UND Tests
-# erfolgreich sind (ein fehlschlagender Schritt bricht den Job ab).
+# Release workflow: A tag vX.Y.Z triggers Build → Tests →
+# self-contained publish (win-x64) → release package (zip + sha256) →
+# GitHub release. The release is only created when Build AND Tests
+# succeed (a failing step aborts the job).
 
 on:
   push:
@@ -26,35 +26,21 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Restore (mit RID für self-contained Publish)
-        # RID beim Restore nötig: sonst fehlt in project.assets.json das
-        # Ziel net8.0-windows/win-x64 und der Publish bricht mit NETSDK1047 ab.
+      - name: Restore (with RID for self-contained publish)
+        # The RID is required during restore: otherwise project.assets.json
+        # lacks the net8.0-windows/win-x64 target and publish fails with NETSDK1047.
         run: dotnet restore FrameBouncer.sln -r win-x64
 
       - name: Build (Release)
         run: dotnet build FrameBouncer.sln -c Release --no-restore
 
-      - name: Test (alle Tests müssen grün sein)
+      - name: Test (all tests must pass)
         run: dotnet test FrameBouncer.sln -c Release --no-build
 
-      - name: Publish App (self-contained, win-x64)
-        run: dotnet publish FrameBouncer/FrameBouncer.csproj -c Release -r win-x64 --self-contained true --no-restore -o publish/app
-
-      - name: Publish ElevationHelper (self-contained, win-x64)
-        run: dotnet publish FrameBouncer.ElevationHelper/FrameBouncer.ElevationHelper.csproj -c Release -r win-x64 --self-contained true --no-restore -o publish/helper
-
-      - name: Publish Updater (self-contained, win-x64)
-        run: dotnet publish FrameBouncer.Updater/FrameBouncer.Updater.csproj -c Release -r win-x64 --self-contained true --no-restore -o publish/updater
-
-      - name: Merge components into app folder
-        shell: pwsh
-        run: |
-          # WICHTIG: NUR die eigenen Dateien der Tools kopieren (exe/dll/deps/runtimeconfig/pdb),
-          # NIEMALS die Runtime-Dateien: Self-Contained-Publishes der Konsolen-Tools enthalten
-          # kleine Facade-Stubs (z.B. WindowsBase.dll, 16 KB), die per -Force die echten
-          # WPF-Assemblies der App überschreiben wuerden (Startcrash 0xE0434352).
-          Get-ChildItem publish/helper -Filter 'FrameBouncer.ElevationHelper.*' | Copy-Item -Destination publish/app -Force
-          Get-ChildItem publish/updater -Filter 'FrameBouncer.Updater.*' | Copy-Item -Destination publish/app -Force
+      - name: Publish App (single-file, self-contained, win-x64)
+        # Portable single EXE: elevation (--elevated-helper) and update (--updater)
+        # run in THE SAME file – no separate helper/updater EXEs anymore.
+        run: dotnet publish FrameBouncer/FrameBouncer.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true --no-restore -o publish/app
 
       - name: Determine version from tag
         id: version
@@ -68,7 +54,7 @@ jobs:
         shell: pwsh
         run: |
           $zip = "FrameBouncer-v${{ steps.version.outputs.version }}-win-x64.zip"
-          Compress-Archive -Path publish/app/* -DestinationPath $zip -Force
+          Compress-Archive -Path publish/app/FrameBouncer.exe -DestinationPath $zip -Force
           $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  $zip" | Out-File -Encoding ascii "$zip.sha256"
 
@@ -81,4 +67,4 @@ jobs:
             "FrameBouncer-v${{ steps.version.outputs.version }}-win-x64.zip" `
             "FrameBouncer-v${{ steps.version.outputs.version }}-win-x64.zip.sha256" `
             --title "FrameBouncer ${{ github.ref_name }}" `
-            --notes "Automatisch erstelltes Release-Paket (self-contained win-x64).`n`nSHA-256 wird über die .sha256-Datei verifiziert (keine digitale Signatur)."
+            --notes "Automatically built release package (self-contained win-x64).`n`nSHA-256 is verified via the .sha256 file (no digital signature)."

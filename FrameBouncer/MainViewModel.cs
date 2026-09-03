@@ -71,8 +71,8 @@ public class MainViewModel : INotifyPropertyChanged
     private readonly IVrrDetectionService? _vrrDetectionService;
     private DateTime _lastVrrRefreshUtc = DateTime.MinValue;
     private string _lastVrrMonitorKey = string.Empty;
-    private string _vrrStatusDisplay = "Unbekannt";
-    private string _vrrDetailsText = "VRR-Status nicht ermittelbar";
+    private string _vrrStatusDisplay = Localization.T("Display.VrrUnknown");
+    private string _vrrDetailsText = Localization.T("Display.VrrDetailsUnknown");
     private System.Windows.Media.SolidColorBrush _vrrStatusBrush = VrrBrushUncertain;
 
     // Statusfarben für die VRR-Anzeige (passend zur bestehenden Palette in App.xaml)
@@ -85,10 +85,14 @@ public class MainViewModel : INotifyPropertyChanged
     private static readonly System.Windows.Media.SolidColorBrush VrrBrushUnavailable =
         new(System.Windows.Media.Color.FromRgb(0xEF, 0x44, 0x44)); // StatusRed
 
+    // Zwischengespeicherte Zustände für den Live-Sprachwechsel (RefreshLocalizedDisplays)
+    private MonitorInfo? _lastMonitorInfo;
+    private LimiterConflictResult? _lastLimiterResult;
+
     // Smart-Cap (rein diagnostischer Vorschlag; „Übernehmen“ setzt NUR TargetFps,
     // kein RTSS-Write — erst Apply schreibt RTSS, siehe AcceptSmartCapCommand)
     private string _smartCapDisplay = "–";
-    private string _smartCapReason = "Kein Vorschlag (VRR-Status nicht ermittelbar)";
+    private string _smartCapReason = Localization.T("Display.SmartCapNoSuggestion");
     private bool _smartCapHasRecommendation;
     private int _smartCapRecommendedFps;
     private int _targetFps = 60;
@@ -99,10 +103,11 @@ public class MainViewModel : INotifyPropertyChanged
     private readonly DispatcherTimer _processRefreshTimer;
     private bool _isRtssConnected = true;
     private bool _isAfterburnerConnected = true;
-    private string _statusFeedback = "Bereit";
+    private string _statusFeedback = Localization.T("Status.Ready");
     private bool _isSimulationMode;
     private bool _startRtssWithApp;
     private bool _startAfterburnerWithApp;
+    private bool _showAntiCheatNote = true;
     private PlotModel _plotModel = null!;
     private readonly List<GameProfile> _savedProfiles = new();
 
@@ -129,7 +134,7 @@ public class MainViewModel : INotifyPropertyChanged
     private readonly LowPercentileCalculator _lowCalculator = new();
     private string? _activeMonitorProcess;
     private string _currentFpsDisplay = "--";
-    private string _currentFrameTimeDisplay = "nicht verfügbar";
+    private string _currentFrameTimeDisplay = Localization.T("Display.NoDataFrameTime");
     private string _onePercentLowDisplay = "--";
     private string _pointOnePercentLowDisplay = "--";
 
@@ -188,6 +193,7 @@ public class MainViewModel : INotifyPropertyChanged
 
         // Autostart-Status aus der Registry spiegeln (Single Source of Truth)
         _isAutostartEnabled = _autostartService.IsAutostartEnabled();
+        _showAntiCheatNote = settings.ShowAntiCheatNote;
 
         // Limiter-Konflikterkennung (diagnostisch, nur lesend) initial auswerten
         if (_limiterConflictService is not null)
@@ -215,7 +221,7 @@ public class MainViewModel : INotifyPropertyChanged
             // erst der vorhandene Apply-Button darf RTSS verändern.
             if (!_smartCapHasRecommendation) return;
             TargetFps = _smartCapRecommendedFps;
-            StatusFeedback = $"Smart-Cap übernommen: {_smartCapRecommendedFps} FPS — jetzt Apply drücken";
+            StatusFeedback = Localization.TFmt("Status.SmartCapAcceptedFmt", _smartCapRecommendedFps);
         });
         ApplyCommand = new RelayCommand(_ => ApplyFpsLimit());
         IncreaseFpsCommand = new RelayCommand(_ => TargetFps = Math.Min(1000, TargetFps + 1));
@@ -225,12 +231,12 @@ public class MainViewModel : INotifyPropertyChanged
             if (param is string str && int.TryParse(str, out var fps))
             {
                 TargetFps = fps;
-                StatusFeedback = $"Preset: {fps} FPS";
+                StatusFeedback = Localization.TFmt("Status.PresetFmt", fps);
             }
             else if (param is int iFps)
             {
                 TargetFps = iFps;
-                StatusFeedback = $"Preset: {iFps} FPS";
+                StatusFeedback = Localization.TFmt("Status.PresetFmt", iFps);
             }
         });
         CloseCommand = new RelayCommand(_ => CloseApp());
@@ -245,6 +251,9 @@ public class MainViewModel : INotifyPropertyChanged
         // Update-Check & -Download (GitHub Releases, Spec Punkt 6/28)
         CheckForUpdatesCommand = new RelayCommand(_ => _ = CheckForUpdatesAsync());
         DownloadUpdateCommand = new RelayCommand(_ => _ = DownloadAndInstallUpdateAsync(), _ => IsUpdateAvailable);
+
+        // Anti-Cheat-Hinweis ausblenden (nur UI-Setting, kein Einfluss auf Limiting)
+        HideAntiCheatNoteCommand = new RelayCommand(_ => ShowAntiCheatNote = false);
 
         // OxyPlot initialisieren
         InitializePlotModel();
@@ -294,7 +303,7 @@ public class MainViewModel : INotifyPropertyChanged
         {
             if (_profileBackupService is null)
             {
-                StatusFeedback = "Backup nicht verfügbar";
+                StatusFeedback = Localization.T("Backup.Unavailable");
                 return;
             }
 
@@ -307,21 +316,21 @@ public class MainViewModel : INotifyPropertyChanged
 
             var result = _profileBackupService.CreateBackup(profiles, explicitPath: path);
 
-            StatusFeedback = $"Backup: {result.FileName} ({result.ProfileCount} Profile)";
+            StatusFeedback = Localization.TFmt("Backup.CreatedFmt", result.FileName, result.ProfileCount);
             Debug.WriteLine($"[FrameBouncer] Backup created: {result.FilePath}");
         }
         catch (UnauthorizedAccessException)
         {
-            StatusFeedback = "Backup fehlgeschlagen: Zugriff verweigert";
+            StatusFeedback = Localization.T("Backup.FailedAccess");
         }
         catch (IOException)
         {
-            StatusFeedback = "Backup fehlgeschlagen: Datei konnte nicht geschrieben werden";
+            StatusFeedback = Localization.T("Backup.FailedWrite");
         }
         catch
         {
             // Kein Exception-Pfad darf die App beenden (Punkt 15)
-            StatusFeedback = "Backup fehlgeschlagen";
+            StatusFeedback = Localization.T("Backup.Failed");
         }
     }
 
@@ -338,7 +347,7 @@ public class MainViewModel : INotifyPropertyChanged
         {
             if (_profileBackupService is null)
             {
-                StatusFeedback = "Restore nicht verfügbar";
+                StatusFeedback = Localization.T("Backup.RestoreUnavailable");
                 return;
             }
 
@@ -351,7 +360,7 @@ public class MainViewModel : INotifyPropertyChanged
         {
             // Kein Exception-Pfad darf die App beenden (Punkt 15). Die aktuelle
             // Konfiguration bleibt durch das automatische Safety-Backup geschützt.
-            StatusFeedback = "Restore fehlgeschlagen – aktuelle Profile blieben erhalten";
+            StatusFeedback = Localization.T("Backup.RestoreFailedKeep");
         }
     }
 
@@ -378,12 +387,11 @@ public class MainViewModel : INotifyPropertyChanged
     {
         var count = backup.Profiles.Count;
         var active = backup.Profiles.Count(p => p.Enabled);
-        var message = $"Backup wiederherstellen?\n\n" +
-                      $"Erstellt: {backup.CreatedAt.ToLocalTime():dd.MM.yyyy HH:mm:ss}\n" +
-                      $"Profile: {count} ({active} aktiviert)\n\n" +
-                      $"Die aktuellen Profile werden vorher automatisch gesichert.";
+        var message = Localization.TFmt("Backup.ConfirmMessageFmt",
+            backup.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss", Localization.DisplayCulture),
+            count, active);
         return RestoreConfirmationHandlerForTests?.Invoke(message)
-               ?? System.Windows.MessageBox.Show(message, "Profil-Backup wiederherstellen",
+               ?? System.Windows.MessageBox.Show(message, Localization.T("Backup.ConfirmTitle"),
                    MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
     }
 
@@ -405,7 +413,7 @@ public class MainViewModel : INotifyPropertyChanged
         if (!string.IsNullOrEmpty(previous) && Processes.Contains(previous))
             SelectedProcess = previous;
 
-        StatusFeedback = $"Restore: {count} Profile wiederhergestellt";
+        StatusFeedback = Localization.TFmt("Backup.RestoreDoneFmt", count);
     }
 
     /// <summary>Test-Hook: Bestätigungsdialog in Tests ersetzen (true = bestätigt).</summary>
@@ -424,7 +432,7 @@ public class MainViewModel : INotifyPropertyChanged
         }
         catch
         {
-            StatusFeedback = "Restore fehlgeschlagen – aktuelle Profile blieben erhalten";
+            StatusFeedback = Localization.T("Backup.RestoreFailedKeep");
             return false;
         }
     }
@@ -443,7 +451,7 @@ public class MainViewModel : INotifyPropertyChanged
     {
         if (_gitHubReleaseService is null)
         {
-            if (!silent) UpdateStatusText = "Update-Prüfung nicht verfügbar.";
+            if (!silent) UpdateStatusText = Localization.T("Update.CheckUnavailable");
             OnPropertyChanged(nameof(UpdateStatusText));
             return;
         }
@@ -452,7 +460,7 @@ public class MainViewModel : INotifyPropertyChanged
         {
             if (!silent)
             {
-                UpdateStatusText = "Prüfe auf Updates…";
+                UpdateStatusText = Localization.T("Update.Checking");
                 OnPropertyChanged(nameof(UpdateStatusText));
             }
 
@@ -469,12 +477,12 @@ public class MainViewModel : INotifyPropertyChanged
                 UpdateStatusText = result.Status switch
                 {
                     UpdateCheckStatus.UpdateAvailable => result.Message,
-                    UpdateCheckStatus.UpToDate => "Du verwendest die neueste Version.",
+                    UpdateCheckStatus.UpToDate => Localization.T("Update.UpToDate"),
                     // Informative Meldung durchreichen (nennt z. B. die geprüfte Updatequelle)
                     UpdateCheckStatus.NoRelease or UpdateCheckStatus.NoConnection or UpdateCheckStatus.HttpError
                         or UpdateCheckStatus.InvalidData or UpdateCheckStatus.AssetMissing =>
-                        string.IsNullOrWhiteSpace(result.Message) ? "Update-Prüfung nicht möglich." : result.Message,
-                    _ => "Update-Prüfung nicht möglich."
+                        string.IsNullOrWhiteSpace(result.Message) ? Localization.T("Update.CheckFailed") : result.Message,
+                    _ => Localization.T("Update.CheckFailed")
                 };
                 OnPropertyChanged(nameof(UpdateStatusText));
             }
@@ -484,7 +492,7 @@ public class MainViewModel : INotifyPropertyChanged
             _updateCheckResult = null;
             if (!silent)
             {
-                UpdateStatusText = "Update-Prüfung nicht möglich.";
+                UpdateStatusText = Localization.T("Update.CheckFailed");
                 OnPropertyChanged(nameof(UpdateStatusText));
             }
         }
@@ -502,24 +510,23 @@ public class MainViewModel : INotifyPropertyChanged
         if (check?.Status != UpdateCheckStatus.UpdateAvailable || check.ZipAsset is null || check.ShaAsset is null
             || _updateDownloader is null || _updateVerifier is null || _updateInstaller is null)
         {
-            UpdateStatusText = "Kein Update zum Installieren vorhanden.";
+            UpdateStatusText = Localization.T("Update.NoUpdateToInstall");
             OnPropertyChanged(nameof(UpdateStatusText));
             return;
         }
 
         try
         {
-            UpdateStatusText = "Lade Update herunter…";
+            UpdateStatusText = Localization.T("Update.Downloading");
             OnPropertyChanged(nameof(UpdateStatusText));
 
-            var downloadDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "FrameBouncer", "Updates");
+            // Update-Pakete gehören zu den Benutzerdaten (Dokumente\FrameBouncer\Updates)
+            var downloadDir = UserDataPaths.UpdatesDirectory;
 
             var download = await _updateDownloader.DownloadAsync(check.ZipAsset, check.ShaAsset, downloadDir).ConfigureAwait(true);
             if (!download.Success || download.ZipPath is null || download.Sha256Path is null)
             {
-                UpdateStatusText = "Update konnte nicht heruntergeladen werden.";
+                UpdateStatusText = Localization.T("Update.DownloadFailed");
                 OnPropertyChanged(nameof(UpdateStatusText));
                 return;
             }
@@ -528,18 +535,18 @@ public class MainViewModel : INotifyPropertyChanged
             if (!verification.IsValid)
             {
                 // Falscher Hash → NIE installieren (Punkt 8/11)
-                UpdateStatusText = "Update konnte nicht verifiziert werden.";
+                UpdateStatusText = Localization.T("Update.VerifyFailed");
                 OnPropertyChanged(nameof(UpdateStatusText));
                 return;
             }
 
-            UpdateStatusText = "Installiere Update…";
+            UpdateStatusText = Localization.T("Update.Installing");
             OnPropertyChanged(nameof(UpdateStatusText));
 
             var launch = _updateInstaller.LaunchUpdater(AppContext.BaseDirectory, download.ZipPath, check.LatestVersion ?? string.Empty);
             if (!launch.Success)
             {
-                UpdateStatusText = "Update konnte nicht installiert werden. Die bisherige Version bleibt erhalten.";
+                UpdateStatusText = Localization.T("Update.InstallFailedKeep");
                 OnPropertyChanged(nameof(UpdateStatusText));
                 return;
             }
@@ -550,7 +557,7 @@ public class MainViewModel : INotifyPropertyChanged
         }
         catch
         {
-            UpdateStatusText = "Update konnte nicht installiert werden. Die bisherige Version bleibt erhalten.";
+            UpdateStatusText = Localization.T("Update.InstallFailedKeep");
             OnPropertyChanged(nameof(UpdateStatusText));
         }
     }
@@ -593,12 +600,40 @@ public class MainViewModel : INotifyPropertyChanged
         {
             if (SetField(ref _selectedProcess, value))
             {
-                StatusFeedback = $"Ziel: {value}";
+                StatusFeedback = Localization.TFmt("Status.TargetSelectedFmt", value);
+                OnPropertyChanged(nameof(IsAntiCheatNoteVisible));
                 // Zielmonitor neu bestimmen (Fenster des neuen Prozesses)
                 RefreshMonitorInfo();
             }
         }
     }
+
+    /// <summary>
+    /// true, sobald ein Spiel zur Begrenzung ausgewählt ist — blendet den
+    /// Anti-Cheat-Hinweis ein (RTSS wirkt per Prozess-Injektion). Rein
+    /// deklarativ, keine Heuristik: Ob ein Spiel online/competitive ist, kann
+    /// FrameBouncer nicht zuverlässig erkennen, daher erscheint der Hinweis
+    /// bei jeder Auswahl, wenn ein Limit angewendet werden kann.
+    /// </summary>
+    public bool IsAntiCheatNoteVisible =>
+        _showAntiCheatNote && !string.IsNullOrWhiteSpace(_selectedProcess);
+
+    /// <summary>
+    /// Einstellung (persistiert in settings.json, Standard an): Anti-Cheat-Hinweis
+    /// anzeigen? Nutzer, die nur Singleplayer spielen, können ihn über ✕ ausblenden.
+    /// </summary>
+    public bool ShowAntiCheatNote
+    {
+        get => _showAntiCheatNote;
+        set
+        {
+            if (SetField(ref _showAntiCheatNote, value))
+                OnPropertyChanged(nameof(IsAntiCheatNoteVisible));
+        }
+    }
+
+    /// <summary>✕ auf dem Anti-Cheat-Hinweis: blendet ihn aus und persistiert das.</summary>
+    public RelayCommand HideAntiCheatNoteCommand { get; private set; } = null!;
 
     public int TargetFps
     {
@@ -666,7 +701,7 @@ public class MainViewModel : INotifyPropertyChanged
     public int MonitorSampleCount => _lowCalculator.Count;
 
     // ---- Limiter-Konflikterkennung (diagnostisch, nur lesend) ----
-    private string _limiterStatusText = "Limiter: unbekannt";
+    private string _limiterStatusText = Localization.T("Display.LimiterInitial");
 
     /// <summary>Kompakte Statuszeile (z.B. "RTSS: 120 · Konflikt möglich").</summary>
     public string LimiterStatusText
@@ -790,7 +825,7 @@ public class MainViewModel : INotifyPropertyChanged
             var monitor = _monitorInfoService.GetTargetMonitor(_selectedProcess);
             MonitorRefreshRateDisplay = monitor.IsAvailable
                 ? $"{monitor.RefreshRateHz} Hz"
-                : "Unbekannt";
+                : Localization.T("Display.VrrUnknown");
 
             // VRR hängt am selben Refresh-Pfad (Start/Selection/10-s-Cache) und
             // ist zusätzlich pro Monitor gecacht — nie im 25-ms-Tick
@@ -799,13 +834,13 @@ public class MainViewModel : INotifyPropertyChanged
         catch
         {
             // Fehlschlagende Erkennung darf niemals Start/Tick/Selection stören
-            MonitorRefreshRateDisplay = "Unbekannt";
-            VrrStatusDisplay = "Unbekannt";
-            VrrDetailsText = "VRR-Status nicht ermittelbar";
+            MonitorRefreshRateDisplay = Localization.T("Display.VrrUnknown");
+            VrrStatusDisplay = Localization.T("Display.VrrUnknown");
+            VrrDetailsText = Localization.T("Display.VrrDetailsUnknown");
             VrrStatusBrush = VrrBrushUncertain;
             SmartCapHasRecommendation = false;
             SmartCapDisplay = "–";
-            SmartCapReason = "Kein Vorschlag (VRR-Status nicht ermittelbar)";
+            SmartCapReason = Localization.T("Display.SmartCapNoSuggestion");
         }
     }
 
@@ -830,12 +865,12 @@ public class MainViewModel : INotifyPropertyChanged
         }
         catch
         {
-            VrrStatusDisplay = "Unbekannt";
-            VrrDetailsText = "VRR-Status nicht ermittelbar";
+            VrrStatusDisplay = Localization.T("Display.VrrUnknown");
+            VrrDetailsText = Localization.T("Display.VrrDetailsUnknown");
             VrrStatusBrush = VrrBrushUncertain;
             SmartCapHasRecommendation = false;
             SmartCapDisplay = "–";
-            SmartCapReason = "Kein Vorschlag (VRR-Status nicht ermittelbar)";
+            SmartCapReason = Localization.T("Display.SmartCapNoSuggestion");
         }
     }
 
@@ -846,11 +881,13 @@ public class MainViewModel : INotifyPropertyChanged
     /// </summary>
     private void ApplyVrrDisplay(MonitorInfo monitor)
     {
+        _lastMonitorInfo = monitor;
+
         if (!monitor.IsAvailable ||
             (monitor.Support == VrrSupport.Unavailable && monitor.State == VrrState.Unavailable))
         {
-            VrrStatusDisplay = "Nicht verfügbar";
-            VrrDetailsText = "VRR-Status nicht verfügbar (kein gültiger Monitor)";
+            VrrStatusDisplay = Localization.T("Display.VrrUnavailable");
+            VrrDetailsText = Localization.T("Display.VrrDetailsUnavailable");
             VrrStatusBrush = VrrBrushUnavailable;
             UpdateSmartCap(monitor);
             return;
@@ -858,22 +895,22 @@ public class MainViewModel : INotifyPropertyChanged
 
         string status = monitor.State switch
         {
-            VrrState.Active => "Aktiv",
-            VrrState.Inactive => "Inaktiv",
+            VrrState.Active => Localization.T("Display.VrrActive"),
+            VrrState.Inactive => Localization.T("Display.VrrInactive"),
             _ => monitor.Support switch
             {
-                VrrSupport.Supported => "Unterstützt",
-                VrrSupport.NotSupported => "Nicht unterstützt",
-                _ => "Unbekannt"
+                VrrSupport.Supported => Localization.T("Display.VrrSupported"),
+                VrrSupport.NotSupported => Localization.T("Display.VrrNotSupported"),
+                _ => Localization.T("Display.VrrUnknown")
             }
         };
         VrrStatusDisplay = status;
 
         // Statusfarbe: grün = aktiv, orange = unterstützt/unbekannt, grau = inaktiv/nicht unterstützt
-        VrrStatusBrush = status switch
+        VrrStatusBrush = (monitor.State, monitor.Support) switch
         {
-            "Aktiv" => VrrBrushActive,
-            "Inaktiv" or "Nicht unterstützt" => VrrBrushNeutral,
+            (VrrState.Active, _) => VrrBrushActive,
+            (VrrState.Inactive, _) or (_, VrrSupport.NotSupported) => VrrBrushNeutral,
             _ => VrrBrushUncertain
         };
 
@@ -882,27 +919,26 @@ public class MainViewModel : INotifyPropertyChanged
             VrrTechnology.GSync => "G-SYNC",
             VrrTechnology.FreeSync => "FreeSync",
             VrrTechnology.AdaptiveSync => "Adaptive Sync",
-            VrrTechnology.None => "Keine",
-            _ => "Unbekannt"
+            VrrTechnology.None => Localization.T("Display.TechNone"),
+            _ => Localization.T("Display.VrrUnknown")
         };
 
         string stateText = monitor.State switch
         {
-            VrrState.Active => "Aktiv",
-            VrrState.Inactive => "Inaktiv",
-            VrrState.Unavailable => "Nicht verfügbar",
-            _ => "Unbekannt (keine öffentliche Windows-API)"
+            VrrState.Active => Localization.T("Display.VrrActive"),
+            VrrState.Inactive => Localization.T("Display.VrrInactive"),
+            VrrState.Unavailable => Localization.T("Display.VrrUnavailable"),
+            _ => Localization.T("Display.VrrStateUnknownNoApi")
         };
         string supportText = monitor.Support switch
         {
-            VrrSupport.Supported => "Unterstützt",
-            VrrSupport.NotSupported => "Nicht unterstützt",
-            VrrSupport.Unavailable => "Nicht verfügbar",
-            _ => "Unbekannt"
+            VrrSupport.Supported => Localization.T("Display.VrrSupported"),
+            VrrSupport.NotSupported => Localization.T("Display.VrrNotSupported"),
+            VrrSupport.Unavailable => Localization.T("Display.VrrUnavailable"),
+            _ => Localization.T("Display.VrrUnknown")
         };
 
-        VrrDetailsText =
-            $"Unterstützung: {supportText}\nAktiver Status: {stateText}\nTechnologie: {tech}";
+        VrrDetailsText = Localization.TFmt("Display.VrrDetailsFmt", supportText, stateText, tech);
 
         UpdateSmartCap(monitor);
     }
@@ -951,8 +987,8 @@ public class MainViewModel : INotifyPropertyChanged
                     SetField(ref _isAutostartEnabled, actual);
 
                 StatusFeedback = _isAutostartEnabled
-                    ? "Autostart aktiviert (Registry: HKCU\\...\\Run)"
-                    : "Autostart deaktiviert";
+                    ? Localization.T("Status.AutostartEnabled")
+                    : Localization.T("Status.AutostartDisabled");
             }
         }
     }
@@ -970,7 +1006,7 @@ public class MainViewModel : INotifyPropertyChanged
         set
         {
             if (SetField(ref _startRtssWithApp, value))
-                StatusFeedback = value ? "RTSS startet künftig mit der App" : "RTSS-Autostart deaktiviert";
+                StatusFeedback = value ? Localization.T("Status.RtssStartWithAppOn") : Localization.T("Status.RtssStartWithAppOff");
         }
     }
 
@@ -981,8 +1017,51 @@ public class MainViewModel : INotifyPropertyChanged
         set
         {
             if (SetField(ref _startAfterburnerWithApp, value))
-                StatusFeedback = value ? "Afterburner startet künftig mit der App" : "Afterburner-Autostart deaktiviert";
+                StatusFeedback = value ? Localization.T("Status.AfterburnerStartWithAppOn") : Localization.T("Status.AfterburnerStartWithAppOff");
         }
+    }
+
+    /// <summary>
+    /// Selected application language ("en" / "de"). Changing it switches the UI
+    /// live (all XAML bindings refresh) and persists the choice to settings.json.
+    /// Never touches profiles, RTSS settings or TargetFps.
+    /// </summary>
+    public string LanguageCode
+    {
+        get => Localization.LanguageCode;
+        set
+        {
+            if (string.Equals(value, Localization.LanguageCode, StringComparison.OrdinalIgnoreCase)) return;
+            Localization.SetLanguage(value);
+            OnPropertyChanged();
+            SaveSettings();
+            RefreshLocalizedDisplays();
+        }
+    }
+
+    /// <summary>
+    /// Re-derives all cached display texts (VRR, Smart-Cap, limiter) in the new
+    /// language after a live language switch. Transient status messages stay as
+    /// they are until the next event overwrites them.
+    /// </summary>
+    public void RefreshLocalizedDisplays()
+    {
+        if (_lastMonitorInfo is not null)
+        {
+            ApplyVrrDisplay(_lastMonitorInfo);
+        }
+        else
+        {
+            VrrStatusDisplay = Localization.T("Display.VrrUnknown");
+            VrrDetailsText = Localization.T("Display.VrrDetailsUnknown");
+            VrrStatusBrush = VrrBrushUncertain;
+            SmartCapHasRecommendation = false;
+            SmartCapDisplay = "–";
+            SmartCapReason = Localization.T("Display.SmartCapNoSuggestion");
+        }
+
+        if (_lastLimiterResult is not null)
+            UpdateLimiterDisplay(_lastLimiterResult);
     }
 
     public bool IsRtssConnected
@@ -1074,11 +1153,11 @@ public class MainViewModel : INotifyPropertyChanged
         // Klare Kennzeichnung bei Simulation
         if (_rtssService is DummyRtssService)
         {
-            StatusFeedback = $"Limit {TargetFps} FPS angefordert (Simuliert)";
+            StatusFeedback = Localization.TFmt("Status.LimitAppliedSimulatedFmt", TargetFps);
         }
         else
         {
-            StatusFeedback = $"Limit {TargetFps} FPS → {SelectedProcess}";
+            StatusFeedback = Localization.TFmt("Status.LimitAppliedFmt", TargetFps, SelectedProcess);
         }
     }
 
@@ -1109,7 +1188,7 @@ public class MainViewModel : INotifyPropertyChanged
         else if (Processes.Count > 0 && string.IsNullOrEmpty(SelectedProcess))
             SelectedProcess = Processes[0];
 
-        StatusFeedback = $"Prozesse: {Processes.Count}";
+        StatusFeedback = Localization.TFmt("Status.ProcessesCountFmt", Processes.Count);
     }
 
     private void OnProcessRefreshTick(object? sender, EventArgs e)
@@ -1251,13 +1330,13 @@ public class MainViewModel : INotifyPropertyChanged
             if (profile.TargetFps > 0)
                 _limitsAppliedThisSession.Add(profile.ProcessName);
 
-            StatusFeedback = $"Auto-Apply: {profile.ProcessName} → {profile.TargetFps} FPS";
+            StatusFeedback = Localization.TFmt("Status.AutoApplyFmt", profile.ProcessName, profile.TargetFps);
             Debug.WriteLine($"[FrameBouncer] Auto-applied profile: {profile.ProcessName} = {profile.TargetFps} FPS");
         }
         catch (Exception ex)
         {
             // Verständlicher Status statt Crash – der Prozess-Refresh läuft weiter.
-            StatusFeedback = $"Auto-Apply fehlgeschlagen: {profile.ProcessName} ({ex.Message})";
+            StatusFeedback = Localization.TFmt("Status.AutoApplyFailedFmt", profile.ProcessName, ex.Message);
             Debug.WriteLine($"[FrameBouncer] Auto-apply failed for {profile.ProcessName}: {ex.Message}");
         }
     }
@@ -1292,7 +1371,7 @@ public class MainViewModel : INotifyPropertyChanged
 
     // Ehrliche "keine Daten"-Texte (Punkt 1/6/8 der Spezifikation)
     private const string NoDataFpsText = "--";
-    private const string NoDataFrameTimeText = "nicht verfügbar";
+    private static string NoDataFrameTimeText => Localization.T("Display.NoDataFrameTime");
     private const string NoDataLowText = "--";
 
     /// <summary>
@@ -1346,16 +1425,20 @@ public class MainViewModel : INotifyPropertyChanged
     /// </summary>
     private void UpdateLimiterDisplay(LimiterConflictResult result)
     {
+        _lastLimiterResult = result;
+
         var parts = new List<string>();
         foreach (var l in result.DetectedLimiters)
         {
             string name = ConflictAnalyzer.SourceName(l.Source);
             parts.Add(l.Status switch
             {
-                LimiterStatus.On => l.LimitFps is int fps ? $"{name}: {fps} FPS" : $"{name}: aktiv",
-                LimiterStatus.Off => $"{name}: Aus",
-                LimiterStatus.Unavailable => $"{name}: Nicht verfügbar",
-                _ => $"{name}: Unbekannt"
+                LimiterStatus.On => l.LimitFps is int fps
+                    ? Localization.TFmt("Display.LimiterOnFmt", name, fps)
+                    : Localization.TFmt("Display.LimiterActiveFmt", name),
+                LimiterStatus.Off => Localization.TFmt("Display.LimiterOffFmt", name),
+                LimiterStatus.Unavailable => Localization.TFmt("Display.LimiterUnavailableFmt", name),
+                _ => Localization.TFmt("Display.LimiterUnknownFmt", name)
             });
         }
         LimiterDetailsText = string.Join(" | ", parts);
@@ -1364,11 +1447,11 @@ public class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(HasLimiterConflict));
 
         var conflictText = result.EffectiveLimitHint is int h
-            ? $"niedrigstes bekanntes Limit: {h} FPS"
-            : "mehrere aktive Limiter";
+            ? Localization.TFmt("Display.LowestLimitFmt", h)
+            : Localization.T("Display.MultipleActive");
         LimiterStatusText = result.HasConflict
-            ? $"⚠ Konflikt möglich · {conflictText}"
-            : "Limiter: kein Konflikt erkannt";
+            ? Localization.TFmt("Display.ConflictPossibleFmt", conflictText)
+            : Localization.T("Display.NoConflict");
     }
 
     /// <summary>
@@ -1422,10 +1505,9 @@ public class MainViewModel : INotifyPropertyChanged
         PointOnePercentLowDisplay = FormatLow(_lowCalculator.ComputePointOnePercentLow());
     }
 
-    // Feste deutsche Kultur für alle Anzeigeformate: Die UI ist deutsch und die
-    // Tests erwarten „8,33 ms“ – unabhängig von der Systemkultur des Rechners
-    // (CI-/englische Systeme dürfen nicht „8.33 ms“ anzeigen).
-    private static readonly CultureInfo DisplayCulture = CultureInfo.GetCultureInfo("de-DE");
+    // Anzeigekultur folgt der gewählten Sprache: de → de-DE („8,33 ms“),
+    // en → en-US („8.33 ms“) – unabhängig von der Systemkultur des Rechners.
+    private static CultureInfo DisplayCulture => Localization.DisplayCulture;
 
     private static string FormatFps(double fps) =>
         Math.Round(fps, 0).ToString("F0", DisplayCulture);
@@ -1458,7 +1540,7 @@ public class MainViewModel : INotifyPropertyChanged
         if (IsPickingWindow) return;
 
         IsPickingWindow = true;
-        StatusFeedback = "Klicke auf ein Fenster... (ESC zum Abbrechen)";
+        StatusFeedback = Localization.T("Status.PickWindowHint");
         RequestMinimize?.Invoke();
     }
 
@@ -1477,16 +1559,16 @@ public class MainViewModel : INotifyPropertyChanged
                     Processes.Add(result.ExeName);
 
                 SelectedProcess = result.ExeName;
-                StatusFeedback = $"Fenster erkannt: {result.WindowTitle}";
+                StatusFeedback = Localization.TFmt("Status.WindowDetectedFmt", result.WindowTitle);
             }
             else
             {
-                StatusFeedback = "Kein geeignete Anwendung erkannt";
+                StatusFeedback = Localization.T("Status.NoWindowDetected");
             }
         }
         catch
         {
-            StatusFeedback = "Fehler bei der Fenstererkennung";
+            StatusFeedback = Localization.T("Status.WindowDetectFailed");
         }
         finally
         {
@@ -1500,7 +1582,7 @@ public class MainViewModel : INotifyPropertyChanged
 
         RequestRestore?.Invoke();
         IsPickingWindow = false;
-        StatusFeedback = "Auswahl abgebrochen";
+        StatusFeedback = Localization.T("Status.PickCancelled");
     }
 
     /// <summary>
@@ -1632,7 +1714,7 @@ public class MainViewModel : INotifyPropertyChanged
         {
             // Monitoring-Zustand sauber zurücksetzen (Spiel beendet / keine Daten)
             HandleMonitorUnavailable();
-            StatusFeedback = $"Keine RTSS-Daten (PID={System.Diagnostics.Process.GetCurrentProcess().Id})";
+            StatusFeedback = Localization.TFmt("Status.NoRtssDataFmt", System.Diagnostics.Process.GetCurrentProcess().Id);
             // Graph updateraserweise leeren wenn keine Daten
             if (_sampleBuffer.Count > 0)
             {
@@ -1721,8 +1803,8 @@ public class MainViewModel : INotifyPropertyChanged
             if (IsRtssConnected) parts.Add("RTSS");
             if (IsAfterburnerConnected) parts.Add("Afterburner");
             StatusFeedback = parts.Count > 0
-                ? $"Verbunden: {string.Join(", ", parts)} | Kein Spiel aktiv"
-                : "Bereit - Starte ein Spiel";
+                ? Localization.TFmt("Status.ConnectedNoGameFmt", string.Join(", ", parts))
+                : Localization.T("Status.ReadyStartGame");
         }
     }
 
@@ -1740,7 +1822,8 @@ public class MainViewModel : INotifyPropertyChanged
 
         // Auto-Save bei relevanten Properties
         if (propertyName is nameof(TargetFps) or nameof(SelectedProcess) or nameof(IsTopmost)
-            or nameof(IsAutostartEnabled) or nameof(StartRtssWithApp) or nameof(StartAfterburnerWithApp))
+            or nameof(IsAutostartEnabled) or nameof(StartRtssWithApp) or nameof(StartAfterburnerWithApp)
+            or nameof(ShowAntiCheatNote))
         {
             SaveSettings();
         }
@@ -1757,7 +1840,9 @@ public class MainViewModel : INotifyPropertyChanged
             StartRtssWithApp = _startRtssWithApp,
             StartAfterburnerWithApp = _startAfterburnerWithApp,
             SavedProcesses = new List<string>(),
-            SavedProfiles = new List<GameProfile>(_savedProfiles)
+            SavedProfiles = new List<GameProfile>(_savedProfiles),
+            Language = Localization.LanguageCode,
+            ShowAntiCheatNote = _showAntiCheatNote
         });
     }
 }

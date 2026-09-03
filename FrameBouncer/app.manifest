@@ -4,8 +4,9 @@
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
       <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
-        <!-- App läuft ohne erhöhte Rechte. Das Schreiben der RTSS-Profile übernimmt
-             FrameBouncer.ElevationHelper, der bei Bedarf explizit elevated gestartet wird. -->
+        <!-- App läuft ohne erhöhte Rechte (portable Single-EXE). Das Schreiben der
+             RTSS-Profile übernimmt bei Bedarf der eigene Elevations-Modus
+             (Argument "elevated helper", on-demand per runas-Verb explizit elevated). -->
         <requestedExecutionLevel level="asInvoker" uiAccess="false" />
       </requestedPrivileges>
     </security>
@@ -26,7 +27,11 @@
 
   <application xmlns="urn:schemas-microsoft-com:asm.v3">
     <windowsSettings>
-      <!-- HighDPI wird über die Projekteigenschaft ApplicationHighDpiMode konfiguriert -->
+      <!-- PerMonitorV2-HighDPI: Ohne diese Deklaration wird die App von Windows
+           DPI-virtualisiert und alle Texte erscheinen unscharf (feste Manifeste
+           ersetzen die SDK-Standard-DPI-Werte). -->
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/pm</dpiAware>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
       <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
     </windowsSettings>
   </application>

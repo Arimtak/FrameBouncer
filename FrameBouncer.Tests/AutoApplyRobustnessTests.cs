@@ -213,7 +213,7 @@ public class AutoApplyRobustnessTests
 
         Assert.Contains("GameA.exe:60", rtss.AttemptedCalls);
         Assert.DoesNotContain(rtss.AppliedLimits, l => l.StartsWith("GameA.exe"));
-        Assert.Contains("fehlgeschlagen", vm.StatusFeedback, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("failed", vm.StatusFeedback, StringComparison.OrdinalIgnoreCase);
 
         // Tick 2: GameB startet und wird trotz GameA-Fehler normal versorgt
         ps.SetProcesses("GameA.exe", "GameB.exe");

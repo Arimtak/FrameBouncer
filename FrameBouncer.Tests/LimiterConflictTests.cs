@@ -37,7 +37,7 @@ public class LimiterConflictTests
 
         Assert.True(result.HasConflict);
         Assert.Equal(117, result.EffectiveLimitHint);
-        Assert.Contains("abweichen", result.Message);
+        Assert.Contains("differ", result.Message);
     }
 
     // 3: RTSS + In-Game → Konflikt, wenn beide sicher aktiv

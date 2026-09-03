@@ -276,7 +276,7 @@ public class ProfileBackupTests : IDisposable
 
         Assert.False(result.IsValid);
         Assert.Contains("2", result.Error);          // Punkt 9: Version wird benannt
-        Assert.Contains("Nicht unterstützte", result.Error);
+        Assert.Contains("Unsupported", result.Error);
     }
 
     [Fact]
@@ -315,7 +315,7 @@ public class ProfileBackupTests : IDisposable
 
         // Punkt 8: Doppelte Profile werden abgelehnt (deterministisch, nicht still korrigiert)
         Assert.False(result.IsValid);
-        Assert.Contains("doppel", result.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("duplicate", result.Error, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]
@@ -350,7 +350,7 @@ public class ProfileBackupTests : IDisposable
         var result = BackupValidator.ValidateFile(Path.Combine(_tempDir, "gibt-es-nicht.json"));
 
         Assert.False(result.IsValid);
-        Assert.Contains("nicht gefunden", result.Error);
+        Assert.Contains("not found", result.Error);
     }
 
     // ---- 16.10–16.13: Restore-Verhalten im ViewModel ----
@@ -471,7 +471,7 @@ public class ProfileBackupTests : IDisposable
         var ok = vm.RestoreProfileBackupForTests(backupPath);
 
         Assert.False(ok);
-        Assert.Contains("fehlgeschlagen", vm.StatusFeedback, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("failed", vm.StatusFeedback, StringComparison.OrdinalIgnoreCase);
         Assert.Single(settings.LastSaved.SavedProfiles);
         Assert.Equal("GameA.exe", settings.LastSaved.SavedProfiles[0].ProcessName);
     }
@@ -628,6 +628,6 @@ public class ProfileBackupTests : IDisposable
 
         vm.CreateProfileBackupForTests();
 
-        Assert.Contains("nicht verfügbar", vm.StatusFeedback);
+        Assert.Contains("not available", vm.StatusFeedback, StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -29,7 +29,7 @@ public class UpdateDownloader : IUpdateDownloader
             if (!zipAsset.BrowserDownloadUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
                 !shaAsset.BrowserDownloadUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             {
-                return new UpdateDownloadResult { Error = "Download nur über HTTPS erlaubt." };
+                return new UpdateDownloadResult { Error = Localization.T("Update.HttpsOnly") };
             }
 
             Directory.CreateDirectory(destinationDir);
@@ -39,7 +39,7 @@ public class UpdateDownloader : IUpdateDownloader
             using (var zipResponse = await _http.GetAsync(zipAsset.BrowserDownloadUrl, cancellationToken).ConfigureAwait(false))
             {
                 if (!zipResponse.IsSuccessStatusCode)
-                    return new UpdateDownloadResult { Error = $"Download fehlgeschlagen (HTTP {(int)zipResponse.StatusCode})." };
+                    return new UpdateDownloadResult { Error = Localization.TFmt("Update.DownloadFailedHttpFmt", (int)zipResponse.StatusCode) };
                 await using (var fs = File.Create(zipPath))
                 {
                     await zipResponse.Content.CopyToAsync(fs, cancellationToken).ConfigureAwait(false);
@@ -49,7 +49,7 @@ public class UpdateDownloader : IUpdateDownloader
             using (var shaResponse = await _http.GetAsync(shaAsset.BrowserDownloadUrl, cancellationToken).ConfigureAwait(false))
             {
                 if (!shaResponse.IsSuccessStatusCode)
-                    return new UpdateDownloadResult { Error = "Hash-Datei konnte nicht heruntergeladen werden." };
+                    return new UpdateDownloadResult { Error = Localization.T("Update.ShaDownloadFailed") };
                 await using (var fs = File.Create(shaPath))
                 {
                     await shaResponse.Content.CopyToAsync(fs, cancellationToken).ConfigureAwait(false);
@@ -60,15 +60,15 @@ public class UpdateDownloader : IUpdateDownloader
         }
         catch (HttpRequestException)
         {
-            return new UpdateDownloadResult { Error = "Keine Internetverbindung." };
+            return new UpdateDownloadResult { Error = Localization.T("Update.NoConnection") };
         }
         catch (TaskCanceledException)
         {
-            return new UpdateDownloadResult { Error = "Download abgebrochen (Timeout)." };
+            return new UpdateDownloadResult { Error = Localization.T("Update.Timeout") };
         }
         catch (Exception ex)
         {
-            return new UpdateDownloadResult { Error = "Download fehlgeschlagen: " + ex.Message };
+            return new UpdateDownloadResult { Error = Localization.TFmt("Update.DownloadFailedGenericFmt", ex.Message) };
         }
     }
 }

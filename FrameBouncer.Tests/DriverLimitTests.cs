@@ -175,7 +175,7 @@ public class DriverLimitTests
         var vm = CreateViewModel(service);
 
         Assert.Contains(result.DetectedLimiters, l => l.Source == LimiterSource.Nvidia && l.Status == LimiterStatus.Off);
-        Assert.Contains("NVIDIA: Aus", vm.LimiterDetailsText);
+        Assert.Contains("NVIDIA: Off", vm.LimiterDetailsText);
     }
 
     [Fact]
@@ -187,7 +187,7 @@ public class DriverLimitTests
         var vm = CreateViewModel(service);
 
         Assert.Contains(result.DetectedLimiters, l => l.Source == LimiterSource.Nvidia && l.Status == LimiterStatus.Unknown);
-        Assert.Contains("NVIDIA: Unbekannt", vm.LimiterDetailsText);
+        Assert.Contains("NVIDIA: Unknown", vm.LimiterDetailsText);
     }
 
     [Fact]

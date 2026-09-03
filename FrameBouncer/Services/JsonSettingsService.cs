@@ -7,13 +7,15 @@ namespace FrameBouncer.Services;
 
 public class JsonSettingsService : ISettingsService
 {
-    private static readonly string DefaultSettingsDirectory = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "FrameBouncer");
-
-    // Alte Settings-Datei neben der EXE – wird einmalig migriert
-    private static readonly string LegacySettingsPath = Path.Combine(
-        AppContext.BaseDirectory, "settings.json");
+    // Frühere Speicherorte – werden einmalig in Dokumente\FrameBouncer migriert:
+    // 1) neben der EXE (alte portable Variante), 2) %APPDATA%\FrameBouncer
+    private static readonly string[] DefaultLegacySettingsPaths =
+    [
+        Path.Combine(AppContext.BaseDirectory, "settings.json"),
+        Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "FrameBouncer", "settings.json")
+    ];
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -22,14 +24,23 @@ public class JsonSettingsService : ISettingsService
 
     private readonly string _settingsDirectory;
     private readonly string _settingsPath;
+    private readonly string[] _legacySettingsPaths;
+    private readonly bool _legacyPathsExplicit;
 
     /// <summary>
-    /// Optionaler Verzeichnis-Override (für Tests). Produktion: %APPDATA%\FrameBouncer.
+    /// Optionaler Verzeichnis-Override (für Tests) und optionale Legacy-Quellen.
+    /// Produktion: Dokumente\FrameBouncer (portable EXE, alle Benutzerdaten an
+    /// einem festen Ort); frühere Speicherorte werden einmalig migriert.
     /// </summary>
-    public JsonSettingsService(string? settingsDirectory = null)
+    public JsonSettingsService(string? settingsDirectory = null, IEnumerable<string>? legacySettingsDirectories = null)
     {
-        _settingsDirectory = settingsDirectory ?? DefaultSettingsDirectory;
+        _settingsDirectory = settingsDirectory ?? UserDataPaths.DataDirectory;
         _settingsPath = Path.Combine(_settingsDirectory, "settings.json");
+        _legacyPathsExplicit = legacySettingsDirectories is not null;
+        _legacySettingsPaths = legacySettingsDirectories
+            ?.Select(d => Path.Combine(d, "settings.json"))
+            .ToArray()
+            ?? DefaultLegacySettingsPaths;
     }
 
     public string SettingsPath => _settingsPath;
@@ -69,20 +80,30 @@ public class JsonSettingsService : ISettingsService
 
     private void MigrateLegacySettingsIfNeeded()
     {
+        // Migration nur auf dem echten Produktionspfad (Dokumente\FrameBouncer) oder
+        // wenn der Aufrufer explizit Legacy-Quellen angibt (Tests) – bei bloßen
+        // Test-Overrides bleibt die echte Benutzerkonfiguration unangetastet.
+        if (!_legacyPathsExplicit &&
+            !string.Equals(_settingsPath, UserDataPaths.SettingsPath, StringComparison.OrdinalIgnoreCase))
+            return;
+
         try
         {
-            if (!File.Exists(LegacySettingsPath)) return;
-
-            Directory.CreateDirectory(_settingsDirectory);
-            if (!File.Exists(_settingsPath))
+            foreach (var legacyPath in _legacySettingsPaths)
             {
-                File.Copy(LegacySettingsPath, _settingsPath, overwrite: false);
+                if (string.IsNullOrWhiteSpace(legacyPath) || !File.Exists(legacyPath)) continue;
+
+                Directory.CreateDirectory(_settingsDirectory);
+                if (!File.Exists(_settingsPath))
+                {
+                    File.Copy(legacyPath, _settingsPath, overwrite: false);
+                }
+                File.Delete(legacyPath);
             }
-            File.Delete(LegacySettingsPath);
         }
         catch
         {
-            // Migration ist best-effort
+            // Migration ist best-effort – die App startet auch ohne Migration
         }
     }
 }

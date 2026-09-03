@@ -39,6 +39,6 @@ public class DummyRtssService : IRtssService
     {
         // TODO: Über RTSS Profil-Interface oder Wrapper-CLI / RTSS API FramerateLimit setzen
         // WICHTIG: Nicht direkt in Read-Only Monitoring Shared Memory schreiben!
-        Console.WriteLine($"[DummyRtssService] FPS-Limit für {processName} auf {targetFps} FPS angefordert.");
+        Console.WriteLine($"[DummyRtssService] FPS limit requested for {processName}: {targetFps} FPS.");
     }
 }

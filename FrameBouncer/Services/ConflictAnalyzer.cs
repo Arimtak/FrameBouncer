@@ -49,14 +49,14 @@ public static class ConflictAnalyzer
         {
             return NoConflict(limiters,
                 activeVSync.Count > 0
-                    ? "V-Sync aktiv – kein FPS-Limiter-Konflikt."
-                    : "Keine aktiven FPS-Limiter erkannt.");
+                    ? Localization.T("Conflict.VSyncOnlyMessage")
+                    : Localization.T("Conflict.NoActiveLimiters"));
         }
 
         if (activeFpsLimiters.Count == 1)
         {
             return NoConflict(limiters,
-                $"Aktives Limit: {Describe(activeFpsLimiters[0])}.");
+                Localization.TFmt("Conflict.ActiveLimitFmt", Describe(activeFpsLimiters[0])));
         }
 
         // ≥ 2 aktive FPS-Limits → Konflikt-Hinweis (vorsichtig formuliert, Punkt 7)
@@ -64,8 +64,7 @@ public static class ConflictAnalyzer
         int? lowest = knownActiveLimits.Count > 0 ? knownActiveLimits.Min() : null;
 
         string detail = string.Join(", ", activeFpsLimiters.Select(Describe));
-        string message = $"Mehrere FPS-Limiter erkannt ({detail}). " +
-                         "Das tatsächlich wirksame Limit kann abweichen.";
+        string message = Localization.TFmt("Conflict.MultipleLimitersFmt", detail);
 
         return new LimiterConflictResult
         {

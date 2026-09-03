@@ -1,3 +1,4 @@
+
 namespace FrameBouncer.Services;
 
 /// <summary>
@@ -48,29 +49,29 @@ public static class SmartCapCalculator
     {
         if (refreshRateHz <= 0)
         {
-            return new SmartCapResult(false, 0, "Kein Vorschlag (Refresh-Rate unbekannt)");
+            return new SmartCapResult(false, 0, Localization.T("SmartCap.NoRecRefreshUnknown"));
         }
 
         if (support == VrrSupport.Unavailable || state == VrrState.Unavailable)
         {
-            return new SmartCapResult(false, 0, "Kein Vorschlag (VRR nicht verfügbar)");
+            return new SmartCapResult(false, 0, Localization.T("SmartCap.NoRecVrrUnavailable"));
         }
 
         if (state == VrrState.Inactive)
         {
-            return new SmartCapResult(false, 0, "Kein Vorschlag (VRR inaktiv — ein Cap unterhalb der Bildwiederholrate bringt ohne aktives VRR keinen Nutzen)");
+            return new SmartCapResult(false, 0, Localization.T("SmartCap.NoRecVrrInactive"));
         }
 
         if (support == VrrSupport.NotSupported)
         {
-            return new SmartCapResult(false, 0, "Kein Vorschlag (Monitor unterstützt kein VRR)");
+            return new SmartCapResult(false, 0, Localization.T("SmartCap.NoRecNotSupported"));
         }
 
         int cap = Math.Max(1, refreshRateHz - Headroom(refreshRateHz));
 
         string reason = state == VrrState.Active
-            ? $"{refreshRateHz}-Hz-Display mit aktivem VRR: Cap {cap} FPS hält den variablen Bereich ein."
-            : $"{refreshRateHz}-Hz-Display, VRR-Status unbekannt: {cap} FPS nur als Vorschlag.";
+            ? Localization.TFmt("SmartCap.ReasonActiveFmt", refreshRateHz, cap)
+            : Localization.TFmt("SmartCap.ReasonUnknownFmt", refreshRateHz, cap);
 
         return new SmartCapResult(true, cap, reason);
     }

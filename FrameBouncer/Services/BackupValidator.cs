@@ -46,40 +46,40 @@ public static class BackupValidator
         }
         catch (JsonException)
         {
-            return BackupValidationResult.Fail("Backup konnte nicht gelesen werden. Grund: ungültiges JSON-Format.");
+            return BackupValidationResult.Fail(Localization.T("Backup.JsonInvalid"));
         }
         catch (Exception)
         {
-            return BackupValidationResult.Fail("Backup konnte nicht gelesen werden. Grund: ungültiges Format.");
+            return BackupValidationResult.Fail(Localization.T("Backup.FormatInvalid"));
         }
 
         if (backup is null)
-            return BackupValidationResult.Fail("Backup konnte nicht gelesen werden. Grund: ungültiges Format.");
+            return BackupValidationResult.Fail(Localization.T("Backup.FormatInvalid"));
 
         if (!IsSupportedVersion(backup.FormatVersion))
             return BackupValidationResult.Fail(
-                $"Nicht unterstützte Backup-Version: {backup.FormatVersion} (unterstützt: {ProfileBackupFile.CurrentFormatVersion}).");
+                Localization.TFmt("Backup.UnsupportedVersionFmt", backup.FormatVersion, ProfileBackupFile.CurrentFormatVersion));
 
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in backup.Profiles)
         {
             if (entry is null)
-                return BackupValidationResult.Fail("Backup ungültig: leerer Profileintrag.");
+                return BackupValidationResult.Fail(Localization.T("Backup.EmptyEntry"));
 
             if (string.IsNullOrWhiteSpace(entry.ProcessName))
-                return BackupValidationResult.Fail("Backup ungültig: Profil ohne Prozess-/EXE-Namen.");
+                return BackupValidationResult.Fail(Localization.T("Backup.NoProcessName"));
 
             var name = entry.ProcessName.Trim();
             if (name.Length > 260 || InvalidProcessNameChars.Any(name.Contains))
-                return BackupValidationResult.Fail($"Backup ungültig: ungültiger Dateiname \"{name}\".");
+                return BackupValidationResult.Fail(Localization.TFmt("Backup.InvalidFileNameFmt", name));
 
             if (entry.TargetFps < MinFps || entry.TargetFps > MaxFps)
                 return BackupValidationResult.Fail(
-                    $"Backup ungültig: ungültiger FPS-Wert {entry.TargetFps} für \"{name}\" (erlaubt {MinFps}–{MaxFps}).");
+                    Localization.TFmt("Backup.InvalidFpsFmt", entry.TargetFps, name, MinFps, MaxFps));
 
             if (!seen.Add(name))
                 return BackupValidationResult.Fail(
-                    $"Backup ungültig: doppeltes Profil für \"{name}\".");
+                    Localization.TFmt("Backup.DuplicateProfileFmt", name));
         }
 
         return BackupValidationResult.Ok(backup);
@@ -89,7 +89,7 @@ public static class BackupValidator
     public static BackupValidationResult ValidateFile(string path)
     {
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
-            return BackupValidationResult.Fail("Backup-Datei nicht gefunden.");
+            return BackupValidationResult.Fail(Localization.T("Backup.FileNotFound"));
 
         string json;
         try
@@ -98,7 +98,7 @@ public static class BackupValidator
         }
         catch (Exception)
         {
-            return BackupValidationResult.Fail("Backup-Datei konnte nicht gelesen werden.");
+            return BackupValidationResult.Fail(Localization.T("Backup.FileUnreadable"));
         }
 
         return ValidateJson(json);

@@ -48,23 +48,42 @@ public partial class MainWindow : Window
         }
 
         Show();
+
+        // Live-Sprachwechsel: Tray-Texte sofort mit übersetzen.
+        Localization.LanguageChanged += UpdateTrayTexts;
     }
+
+    private System.Windows.Forms.ToolStripMenuItem? _trayShowItem;
+    private System.Windows.Forms.ToolStripMenuItem? _trayExitItem;
 
     private void InitTrayIcon()
     {
         _trayIcon = new System.Windows.Forms.NotifyIcon();
         _trayIcon.Icon = CreateTrayIcon();
-        _trayIcon.Text = "FrameBouncer - Doppelklick zum Öffnen";
+        _trayIcon.Text = Localization.T("Tray.Text");
         _trayIcon.Visible = false;
 
         _trayIcon.DoubleClick += (_, _) => ShowFromTray();
 
         var menu = new System.Windows.Forms.ContextMenuStrip();
-        menu.Items.Add("Fenster anzeigen", null, (_, _) => ShowFromTray());
+        _trayShowItem = new System.Windows.Forms.ToolStripMenuItem(Localization.T("Tray.ShowWindow"), null, (_, _) => ShowFromTray());
+        _trayExitItem = new System.Windows.Forms.ToolStripMenuItem(Localization.T("Tray.Exit"), null, (_, _) => ExitApp());
+        menu.Items.Add(_trayShowItem);
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
-        menu.Items.Add("Beenden", null, (_, _) => ExitApp());
+        menu.Items.Add(_trayExitItem);
 
         _trayIcon.ContextMenuStrip = menu;
+    }
+
+    /// <summary>Re-localizes the tray tooltip and menu after a language switch.</summary>
+    private void UpdateTrayTexts()
+    {
+        if (_trayIcon is not null)
+            _trayIcon.Text = Localization.T("Tray.Text");
+        if (_trayShowItem is not null)
+            _trayShowItem.Text = Localization.T("Tray.ShowWindow");
+        if (_trayExitItem is not null)
+            _trayExitItem.Text = Localization.T("Tray.Exit");
     }
 
     private static System.Drawing.Icon CreateTrayIcon()

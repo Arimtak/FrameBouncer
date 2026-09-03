@@ -250,6 +250,6 @@ public class WindowPickerTests
         vm.PickWindowCommand.Execute(null);
         vm.CompletePick();
 
-        Assert.Contains("kein", vm.StatusFeedback, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("suitable", vm.StatusFeedback, StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -33,37 +33,37 @@ public class GitHubReleaseService : IGitHubReleaseService
 
             if (response.StatusCode == HttpStatusCode.NotFound)
                 return Result(UpdateCheckStatus.NoRelease,
-                    $"Updatequelle nicht gefunden ({UpdateConfiguration.Owner}/{UpdateConfiguration.Repository}).");
+                    Localization.TFmt("Update.NoReleaseFmt", UpdateConfiguration.Owner, UpdateConfiguration.Repository));
 
             if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests)
-                return Result(UpdateCheckStatus.HttpError, "Update-Prüfung nicht möglich (Rate Limit).");
+                return Result(UpdateCheckStatus.HttpError, Localization.T("Update.RateLimit"));
 
             if (!response.IsSuccessStatusCode)
-                return Result(UpdateCheckStatus.HttpError, $"Update-Prüfung nicht möglich (HTTP {(int)response.StatusCode}).");
+                return Result(UpdateCheckStatus.HttpError, Localization.TFmt("Update.HttpErrorFmt", (int)response.StatusCode));
 
             var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             var release = ParseRelease(json);
             if (release is null)
-                return Result(UpdateCheckStatus.InvalidData, "Update-Prüfung nicht möglich (ungültige Release-Daten).");
+                return Result(UpdateCheckStatus.InvalidData, Localization.T("Update.InvalidReleaseData"));
 
             return Evaluate(release, currentVersion);
         }
         catch (HttpRequestException)
         {
-            return Result(UpdateCheckStatus.NoConnection, "Keine Internetverbindung.");
+            return Result(UpdateCheckStatus.NoConnection, Localization.T("Update.NoConnection"));
         }
         catch (TaskCanceledException)
         {
-            return Result(UpdateCheckStatus.NoConnection, "Keine Internetverbindung (Timeout).");
+            return Result(UpdateCheckStatus.NoConnection, Localization.T("Update.Timeout"));
         }
         catch (JsonException)
         {
-            return Result(UpdateCheckStatus.InvalidData, "Update-Prüfung nicht möglich (ungültige Antwort).");
+            return Result(UpdateCheckStatus.InvalidData, Localization.T("Update.InvalidResponse"));
         }
         catch
         {
             // Kein Crash, keine Exception nach außen (Punkt 17/28)
-            return Result(UpdateCheckStatus.NoConnection, "Update-Prüfung nicht möglich.");
+            return Result(UpdateCheckStatus.NoConnection, Localization.T("Update.GenericFailure"));
         }
     }
 
@@ -71,17 +71,17 @@ public class GitHubReleaseService : IGitHubReleaseService
     private static UpdateCheckResult Evaluate(GitHubReleaseInfo release, string currentVersion)
     {
         if (release.IsPrerelease)
-            return Result(UpdateCheckStatus.UpToDate, "Du verwendest die neueste stabile Version.");
+            return Result(UpdateCheckStatus.UpToDate, Localization.T("Update.UpToDateStable"));
 
         var latest = AppVersion.Parse(release.TagName);
         if (latest is null)
-            return Result(UpdateCheckStatus.InvalidData, "Update-Prüfung nicht möglich (Version nicht lesbar).");
+            return Result(UpdateCheckStatus.InvalidData, Localization.T("Update.GenericFailure"));
 
         var current = AppVersion.Parse(currentVersion) ?? new Version(0, 0, 0);
 
         // Gleich oder älter → kein Update, kein Downgrade (Punkt 4)
         if (latest <= current)
-            return Result(UpdateCheckStatus.UpToDate, "Du verwendest die neueste Version.");
+            return Result(UpdateCheckStatus.UpToDate, Localization.T("Update.UpToDate"));
 
         var zipName = UpdateConfiguration.BuildAssetName(release.TagName);
         var shaName = UpdateConfiguration.BuildSha256AssetName(release.TagName);
@@ -97,7 +97,7 @@ public class GitHubReleaseService : IGitHubReleaseService
                 Status = UpdateCheckStatus.AssetMissing,
                 LatestVersion = release.TagName,
                 Release = release,
-                Message = "Neue Version verfügbar, aber das Update-Paket fehlt."
+                Message = Localization.T("Update.AssetMissing")
             };
 
         return new UpdateCheckResult
@@ -107,7 +107,7 @@ public class GitHubReleaseService : IGitHubReleaseService
             Release = release,
             ZipAsset = zipAsset,
             ShaAsset = shaAsset,
-            Message = $"Neue Version verfügbar: {release.TagName}"
+            Message = Localization.TFmt("Update.AvailableFmt", release.TagName)
         };
     }
 

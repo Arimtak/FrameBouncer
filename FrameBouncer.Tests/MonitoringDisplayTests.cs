@@ -9,8 +9,14 @@ namespace FrameBouncer.Tests;
 /// ehrliche FPS/Frametime-Anzeige, Quellen-Unterscheidung, Low-Werte,
 /// "--" bei zu wenigen Samples, Spielwechsel-Trennung, Ringpuffer-Grenze.
 /// </summary>
-public class MonitoringDisplayTests
+public class MonitoringDisplayTests : IDisposable
 {
+    // Diese Tests prüfen die deutsche Zahlenformatierung („8,33 ms“) und die
+    // deutschen „keine Daten“-Texte – deshalb explizit auf Deutsch umschalten.
+    // Dispose stellt Englisch wieder her (Tests laufen sequenziell).
+    public MonitoringDisplayTests() => FrameBouncer.Localization.SetLanguage("de");
+    public void Dispose() => FrameBouncer.Localization.SetLanguage("en");
+
     private class MockRtssService : IRtssService
     {
         public List<string> AppliedLimits { get; } = new();

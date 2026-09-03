@@ -9,3 +9,8 @@ obj/
 
 ## Lokale Tool-/Preview-Artefakte (nicht ins öffentliche Repo)
 .freebuff/
+
+## Lokale Build-/Diagnose-Artefakte (nicht ins öffentliche Repo)
+publish-single/
+scratch/
+.test-publish/

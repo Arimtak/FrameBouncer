@@ -29,7 +29,7 @@ public class UpdateSystemTests
         var result = await service.CheckForUpdatesAsync("1.0.0");
 
         Assert.Equal(UpdateCheckStatus.UpToDate, result.Status);
-        Assert.Contains("neueste", result.Message);
+        Assert.Contains("latest", result.Message);
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public class UpdateSystemTests
         var result = await service.CheckForUpdatesAsync("1.0.0");
 
         Assert.Equal(UpdateCheckStatus.NoRelease, result.Status);
-        Assert.Contains("Updatequelle", result.Message);
+        Assert.Contains("Update source", result.Message);
         // Die geprüfte Quelle (zentrale Konfiguration) wird in der Meldung genannt
         Assert.Contains(UpdateConfiguration.Owner + "/" + UpdateConfiguration.Repository, result.Message);
     }
@@ -254,7 +254,7 @@ public class UpdateSystemTests
             "FrameBouncer.exe", "FrameBouncer", waiter, new FakeProcessStarter());
 
         Assert.False(result.Success);
-        Assert.Contains("nicht beendet", result.Message);
+        Assert.Contains("not closed", result.Message);
         Assert.Equal("OLD", File.ReadAllText(Path.Combine(installDir, "FrameBouncer.exe")));
     }
 
@@ -301,7 +301,7 @@ public class UpdateSystemTests
             "FrameBouncer.exe", "FrameBouncer", new FakeProcessWaiter(), new FakeProcessStarter());
 
         Assert.False(result.Success);
-        Assert.Contains("unsicher", result.Message);
+        Assert.Contains("unsafe", result.Message);
         Assert.False(File.Exists(Path.Combine(tmp.Path, "evil.txt"))); // nichts außerhalb installiert
     }
 
@@ -442,20 +442,20 @@ public class UpdateSystemTests
         await vm.DownloadAndInstallUpdateAsync();
 
         Assert.False(installer.Launched); // falscher Hash → NIE installieren (Punkt 11)
-        Assert.Contains("verifiziert", vm.UpdateStatusText);
+        Assert.Contains("verified", vm.UpdateStatusText);
     }
 
     [Fact]
     public async Task Offline_CoreFunctionsStillWork()
     {
-        var gh = new FakeGitHubReleaseService(new UpdateCheckResult { Status = UpdateCheckStatus.NoConnection, Message = "Keine Internetverbindung." });
+        var gh = new FakeGitHubReleaseService(new UpdateCheckResult { Status = UpdateCheckStatus.NoConnection, Message = "No internet connection." });
         var rtss = new MockRtssService();
         var settings = new MockSettingsService();
         var vm = CreateViewModel(gh, new FakeUpdateDownloader(), new FakeUpdateVerifier(), new FakeUpdateInstaller(), rtss, settings);
 
         await vm.CheckForUpdatesAsync();
 
-        Assert.Contains("Internetverbindung", vm.UpdateStatusText);
+        Assert.Contains("internet connection", vm.UpdateStatusText);
         Assert.False(vm.IsUpdateAvailable);
         // Kernfunktionen funktionieren weiterhin (Offline, Punkt 18)
         vm.RefreshProcessesCommand.Execute(null);

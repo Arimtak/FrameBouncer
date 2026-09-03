@@ -376,17 +376,19 @@ public class RtssService : IRtssService
     {
         try
         {
-            string? helperPath = FindElevationHelper();
-            if (string.IsNullOrEmpty(helperPath))
+            // Portable Single-EXE: Die laufende EXE startet SICH SELBST im
+            // --elevated-helper-Modus (früher FrameBouncer.ElevationHelper.exe).
+            string? helperPath = Environment.ProcessPath;
+            if (string.IsNullOrEmpty(helperPath) || !File.Exists(helperPath))
             {
-                Debug.WriteLine("[FrameBouncer] ElevationHelper not found");
+                Debug.WriteLine("[FrameBouncer] Eigene EXE nicht auffindbar");
                 return false;
             }
 
             using var proc = Process.Start(new ProcessStartInfo
             {
                 FileName = helperPath,
-                Arguments = $"writeLimit \"{installPath}\" \"{processName}\" {targetFps}",
+                Arguments = $"--elevated-helper --lang={Localization.LanguageCode} writeLimit \"{installPath}\" \"{processName}\" {targetFps}",
                 UseShellExecute = true,
                 Verb = "runas" // explizite, benutzerbestätigte Elevation
             });
@@ -413,22 +415,6 @@ public class RtssService : IRtssService
             Debug.WriteLine($"[FrameBouncer] ElevationHelper error: {ex.Message}");
             return false;
         }
-    }
-
-    private static string? FindElevationHelper()
-    {
-        // 1. Neben der eigenen EXE (typisch für dotnet publish / Release-Layout)
-        string besideExe = Path.Combine(AppContext.BaseDirectory, "FrameBouncer.ElevationHelper.exe");
-        if (File.Exists(besideExe)) return besideExe;
-
-        // 2. Layout von dotnet build: ../FrameBouncer.ElevationHelper/bin/Debug/net8.0-windows/
-        string buildLayout = Path.Combine(AppContext.BaseDirectory, "..", "..", "..",
-            "..", "FrameBouncer.ElevationHelper", "bin", "Debug", "net8.0-windows",
-            "FrameBouncer.ElevationHelper.exe");
-        string full = Path.GetFullPath(buildLayout);
-        if (File.Exists(full)) return full;
-
-        return null;
     }
 
     private string? GetRtssInstallPath()

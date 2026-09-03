@@ -6,15 +6,16 @@
         xmlns:oxy="http://oxyplot.org/wpf"
         xmlns:viewModels="clr-namespace:FrameBouncer.ViewModels"
         xmlns:services="clr-namespace:FrameBouncer.Services"
+        xmlns:loc="clr-namespace:FrameBouncer"
         mc:Ignorable="d"
         Title="FrameBouncer"
         Icon="pack://application:,,,/app.ico"
-        Width="300"
-        Height="402"
-        MinWidth="300"
-        MinHeight="402"
-        MaxWidth="320"
-        MaxHeight="422"
+        Width="440"
+        Height="470"
+        MinWidth="440"
+        MinHeight="470"
+        MaxWidth="440"
+        MaxHeight="470"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
@@ -34,6 +35,111 @@
             <Setter Property="Background" Value="{StaticResource BgCard}" />
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
             <Setter Property="BorderBrush" Value="{StaticResource BorderSubtle}" />
+        </Style>
+
+        <!-- Dark ComboBox (nur fuer den Sprach-/Header-Selektor): identisches Dark-Look
+             wie die Prozess-ComboBox, damit "English / Deutsch" lesbar ist. -->
+        <Style x:Key="HeaderDarkComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <Border x:Name="border"
+                                    Background="{StaticResource BgCard}"
+                                    BorderBrush="{StaticResource BorderSubtle}"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    SnapsToDevicePixels="True">
+                                <Grid>
+                                    <ToggleButton x:Name="PART_ToggleButton"
+                                                  IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                                  Focusable="False"
+                                                  ClickMode="Release"
+                                                  Background="Transparent"
+                                                  BorderThickness="0">
+                                        <ToggleButton.Template>
+                                            <ControlTemplate TargetType="ToggleButton">
+                                                <Border Background="Transparent" BorderThickness="0" />
+                                            </ControlTemplate>
+                                        </ToggleButton.Template>
+                                    </ToggleButton>
+                                    <!-- Anzeige des ausgewaehlten Eintrags als PLAIN TEXT (Content-String statt
+                                         verschachteltem ComboBoxItem-Control), damit die Farbe zuverlaessig
+                                         TextPrimary ist und die Schrift klar lesbar bleibt. -->
+                                    <ContentPresenter IsHitTestVisible="False"
+                                                      Margin="{TemplateBinding Padding}"
+                                                      HorizontalAlignment="Left"
+                                                      VerticalAlignment="Center"
+                                                      Content="{Binding SelectedItem.Content, RelativeSource={RelativeSource TemplatedParent}}"
+                                                      TextElement.Foreground="{TemplateBinding Foreground}"
+                                                      x:Name="contentPresenter" />
+                                    <Path HorizontalAlignment="Right"
+                                          VerticalAlignment="Center"
+                                          Margin="0,0,7,0"
+                                          Data="M 0 0 L 4 3 L 8 0 Z"
+                                          Fill="{StaticResource TextSecondary}"
+                                          Stretch="Uniform"
+                                          Width="7"
+                                          Height="4"
+                                          IsHitTestVisible="False" />
+                                </Grid>
+                            </Border>
+                            <Popup x:Name="PART_Popup"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   Placement="Bottom"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   PopupAnimation="Slide">
+                                <Border Background="{StaticResource BgCard}"
+                                        BorderBrush="{StaticResource BorderSubtle}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Margin="0,2,0,0"
+                                        MinWidth="{TemplateBinding ActualWidth}">
+                                    <StackPanel>
+                                        <ItemsPresenter />
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                        <Setter Property="Padding" Value="6,3" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ComboBoxItem">
+                                    <Border x:Name="border"
+                                            Background="{TemplateBinding Background}"
+                                            BorderThickness="0"
+                                            Padding="{TemplateBinding Padding}"
+                                            SnapsToDevicePixels="True">
+                                        <ContentPresenter />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="border" Property="Background" Value="#1A3B82F6" />
+                                            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                                        </Trigger>
+                                        <Trigger Property="IsHighlighted" Value="True">
+                                            <Setter TargetName="border" Property="Background" Value="#143B82F6" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style x:Key="PresetButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="{StaticResource BgCard}" />
@@ -95,10 +201,8 @@
                 <RowDefinition Height="*" />
                 <!-- 7: Statuszeile -->
                 <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
-
-            <!-- ========================================== -->
-            <!-- 0. HEADER: Titel links, Pin & Autostart rechts; Zeile 2: "Mit App starten" -->
+            </Grid.RowDefinitions>            <!-- ========================================== -->
+            <!-- 0. HEADER: Titel links; Actions (Pin, Autostart, Tray, Sprache, Updates, ✕) rechts -->
             <!-- ========================================== -->
             <Grid Grid.Row="0" Margin="0,0,0,10">
                 <Grid.RowDefinitions>
@@ -131,7 +235,7 @@
                             Margin="6,0,0,0"
                             VerticalAlignment="Center"
                             Visibility="{Binding IsSimulationMode, Converter={StaticResource BoolToVisibility}}"
-                            ToolTip="RTSS &amp; MSI Afterburner laufen im Simulations-Modus">
+                            ToolTip="{Binding [Ui.SimBadgeTooltip], Mode=OneWay, Source={x:Static loc:Localization.Instance}}">
                         <TextBlock Text="SIM"
                                    FontSize="9"
                                    FontWeight="Bold"
@@ -139,37 +243,60 @@
                     </Border>
                 </StackPanel>
 
-                <!-- Header Actions: Pin, Autostart, Tray & Close -->
+                <!-- Header Actions: Pin, Autostart, Tray, Sprache, Updates, Close -->
                 <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Language selector: English / Deutsch (live switch, persisted in settings.json) -->
+                    <ComboBox Width="92" Height="24" FontSize="12"
+                              Style="{StaticResource HeaderDarkComboBoxStyle}"
+                              Margin="0,0,6,0"
+                              VerticalAlignment="Center"
+                              SelectedValue="{Binding LanguageCode, Mode=TwoWay}"
+                              SelectedValuePath="Tag"
+                              ToolTip="Language / Sprache">
+                        <ComboBoxItem Content="English" Tag="en" />
+                        <ComboBoxItem Content="Deutsch" Tag="de" />
+                    </ComboBox>
+
                     <!-- Pin (Topmost) Toggle -->
                     <ToggleButton Style="{StaticResource HeaderToggleButtonStyle}"
                                   IsChecked="{Binding IsTopmost, Mode=TwoWay}"
-                                  ToolTip="Immer im Vordergrund halten"
+                                  ToolTip="{Binding [Ui.PinTooltip], Mode=OneWay, Source={x:Static loc:Localization.Instance}}"
                                   Margin="0,0,3,0">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="📌" FontSize="10" Margin="0,0,3,0" />
-                            <TextBlock Text="Pin" FontSize="11" />
-                        </StackPanel>
+                        <TextBlock Text="📌" FontSize="11" />
                     </ToggleButton>
 
                     <!-- Autostart Toggle (TwoWay-Binding: Setter wendet Registry-Änderung an) -->
                     <ToggleButton Style="{StaticResource HeaderToggleButtonStyle}"
                                   IsChecked="{Binding IsAutostartEnabled, Mode=TwoWay}"
-                                  ToolTip="Windows Autostart aktivieren"
+                                  ToolTip="{Binding [Ui.AutostartTooltip], Mode=OneWay, Source={x:Static loc:Localization.Instance}}"
                                   Margin="0,0,3,0">
-                        <TextBlock Text="Autostart" FontSize="11" />
+                        <TextBlock Text="{Binding [Ui.AutostartButton], Source={x:Static loc:Localization.Instance}}" FontSize="11" />
                     </ToggleButton>
 
                     <!-- Beim Schließen im Infobereich weiterlaufen -->
                     <ToggleButton Style="{StaticResource HeaderToggleButtonStyle}"
                                   IsChecked="{Binding MinimizeToTray, Mode=TwoWay}"
-                                  ToolTip="X versteckt Fenster, Programm läuft im Tray weiter"
+                                  ToolTip="{Binding [Ui.TrayTooltip], Mode=OneWay, Source={x:Static loc:Localization.Instance}}"
                                   Margin="0,0,4,0">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="🔔" FontSize="10" Margin="0,0,3,0" />
-                            <TextBlock Text="Tray" FontSize="11" />
-                        </StackPanel>
+                        <TextBlock Text="🔔" FontSize="11" />
                     </ToggleButton>
+
+                    <!-- Update-System (GitHub Releases): Check + Download, nur bei Bedarf sichtbar -->
+                    <Button Command="{Binding CheckForUpdatesCommand}"
+                            Style="{StaticResource PresetButtonStyle}"
+                            ToolTip="{Binding [Ui.CheckUpdatesTooltip], Mode=OneWay, Source={x:Static loc:Localization.Instance}}"
+                            Margin="0,0,3,0"
+                            Padding="6,3">
+                        <TextBlock Text="{Binding [Ui.CheckUpdatesButton], Source={x:Static loc:Localization.Instance}}" FontSize="11" />
+                    </Button>
+                    <Button Command="{Binding DownloadUpdateCommand}"
+                            Style="{StaticResource PresetButtonStyle}"
+                            ToolTip="{Binding [Ui.DownloadUpdateTooltip], Mode=OneWay, Source={x:Static loc:Localization.Instance}}"
+                            Visibility="{Binding IsUpdateAvailable, Converter={StaticResource BoolToVisibility}}"
+                            Margin="0,0,3,0"
+                            Padding="6,3">
+                        <TextBlock Text="{Binding [Ui.DownloadUpdateButton], Source={x:Static loc:Localization.Instance}}" FontSize="11" />
+                    </Button>
 
                     <!-- Schließen Button -->
                     <Button Width="18" Height="18"
@@ -178,7 +305,7 @@
                             Foreground="{StaticResource TextSecondary}"
                             Click="CloseButton_Click"
                             Cursor="Hand"
-                            ToolTip="Beenden">
+                            ToolTip="{Binding [Ui.CloseTooltip], Mode=OneWay, Source={x:Static loc:Localization.Instance}}">
                         <Button.Template>
                             <ControlTemplate TargetType="Button">
                                 <Border Background="{TemplateBinding Background}" CornerRadius="3">
@@ -197,41 +324,23 @@
                 <!-- Zeile 2: "Mit App starten" – RTSS & Afterburner optional mitstarten (Opt-in, kein UAC) -->
                 <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
                             Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
-                    <TextBlock Text="Mit App starten:"
+                    <TextBlock Text="{Binding [Ui.StartWithAppLabel], Source={x:Static loc:Localization.Instance}}"
                                FontSize="10"
                                Foreground="{StaticResource TextMuted}"
                                VerticalAlignment="Center"
                                Margin="0,0,6,0" />
                     <ToggleButton Style="{StaticResource HeaderToggleButtonStyle}"
                                   IsChecked="{Binding StartRtssWithApp, Mode=TwoWay}"
-                                  ToolTip="RTSS beim nächsten App-Start automatisch mitstarten, falls es nicht läuft (kein UAC-Prompt)"
+                                  ToolTip="{Binding [Ui.StartRtssTooltip], Mode=OneWay, Source={x:Static loc:Localization.Instance}}"
                                   Margin="0,0,3,0">
                         <TextBlock Text="RTSS" FontSize="10" />
                     </ToggleButton>
                     <ToggleButton Style="{StaticResource HeaderToggleButtonStyle}"
                                   IsChecked="{Binding StartAfterburnerWithApp, Mode=TwoWay}"
-                                  ToolTip="MSI Afterburner beim nächsten App-Start automatisch mitstarten, falls es nicht läuft (kein UAC-Prompt)"
+                                  ToolTip="{Binding [Ui.StartAfterburnerTooltip], Mode=OneWay, Source={x:Static loc:Localization.Instance}}"
                                   Margin="0,0,0,0">
                         <TextBlock Text="Afterburner" FontSize="10" />
                     </ToggleButton>
-
-                    <!-- Update-System (GitHub Releases): Check + Download, nur bei Bedarf sichtbar -->
-                    <Border Width="1" Background="{StaticResource BorderSubtle}" Margin="8,2,8,2" />
-                    <Button Command="{Binding CheckForUpdatesCommand}"
-                            Style="{StaticResource PresetButtonStyle}"
-                            ToolTip="Nach Updates suchen (GitHub Releases)"
-                            Margin="0,0,3,0"
-                            Padding="6,2">
-                        <TextBlock Text="⟳ Updates" FontSize="10" />
-                    </Button>
-                    <Button Command="{Binding DownloadUpdateCommand}"
-                            Style="{StaticResource PresetButtonStyle}"
-                            ToolTip="Neue Version herunterladen, verifizieren und installieren"
-                            Visibility="{Binding IsUpdateAvailable, Converter={StaticResource BoolToVisibility}}"
-                            Margin="0,0,3,0"
-                            Padding="6,2">
-                        <TextBlock Text="⬇ Update" FontSize="10" />
-                    </Button>
                 </StackPanel>
             </Grid>
 
@@ -246,8 +355,8 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <TextBlock Text="Limiter"
-                           FontSize="12"
+                <TextBlock Text="{Binding [Ui.LimiterLabel], Source={x:Static loc:Localization.Instance}}"
+                           FontSize="13"
                            FontWeight="Medium"
                            Foreground="{StaticResource TextSecondary}"
                            VerticalAlignment="Center" />
@@ -256,8 +365,8 @@
                           ItemsSource="{Binding Processes}"
                           SelectedItem="{Binding SelectedProcess, Mode=TwoWay}"
                           Foreground="{StaticResource TextPrimary}"
-                          FontSize="12"
-                          Height="26"
+                          FontSize="13"
+                          Height="28"
                           Padding="6,3"
                           FocusVisualStyle="{x:Null}"
                           SnapsToDevicePixels="True">
@@ -357,7 +466,7 @@
                         Height="26"
                         Margin="4,0,0,0"
                         FontSize="14"
-                        ToolTip="Prozesse aktualisieren"
+                        ToolTip="{Binding [Ui.RefreshProcessesTooltip], Mode=OneWay, Source={x:Static loc:Localization.Instance}}"
                         Style="{StaticResource PresetButtonStyle}"
                         Content="&#x21BB;" />
 
@@ -367,7 +476,7 @@
                         Height="26"
                         Margin="3,0,0,0"
                         FontSize="11"
-                        ToolTip="Fenster auswählen (Klick auf Spiel)"
+                        ToolTip="{Binding [Ui.PickWindowTooltip], Mode=OneWay, Source={x:Static loc:Localization.Instance}}"
                         Style="{StaticResource PresetButtonStyle}"
                         Content="&#x1F447;" />
             </Grid>
@@ -382,8 +491,8 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <TextBlock Text="Target FPS"
-                           FontSize="12"
+                <TextBlock Text="{Binding [Ui.TargetFpsLabel], Source={x:Static loc:Localization.Instance}}"
+                           FontSize="13"
                            FontWeight="Medium"
                            Foreground="{StaticResource TextSecondary}"
                            VerticalAlignment="Center" />
@@ -396,14 +505,14 @@
                              CaretBrush="{StaticResource AccentColor}"
                              BorderBrush="{StaticResource BorderSubtle}"
                              BorderThickness="1"
-                             Height="26"
-                             FontSize="12"
+                             Height="28"
+                             FontSize="13"
                              Padding="6,3,50,3"
                              VerticalContentAlignment="Center" />
                     
                     <!-- Berechnete ms Anzeige dezent rechts im Feld -->
                     <TextBlock Text="{Binding TargetFrameTimeMs, Mode=OneWay, StringFormat={}{0:F2} ms}"
-                               FontSize="10"
+                               FontSize="11"
                                Foreground="{StaticResource TextMuted}"
                                HorizontalAlignment="Right"
                                VerticalAlignment="Center"
@@ -443,26 +552,30 @@
                 <Button Content="30"
                         Command="{Binding SetFpsPresetCommand}"
                         CommandParameter="30"
-                        Height="22"
-                        Margin="0,0,2,0"
+                        Height="24"
+                        Margin="0,0,3,0"
+                        FontSize="11"
                         Style="{StaticResource PresetButtonStyle}" />
                 <Button Content="60"
                         Command="{Binding SetFpsPresetCommand}"
                         CommandParameter="60"
-                        Height="22"
-                        Margin="2,0,2,0"
+                        Height="24"
+                        Margin="3,0,3,0"
+                        FontSize="11"
                         Style="{StaticResource PresetButtonStyle}" />
                 <Button Content="120"
                         Command="{Binding SetFpsPresetCommand}"
                         CommandParameter="120"
-                        Height="22"
-                        Margin="2,0,2,0"
+                        Height="24"
+                        Margin="3,0,3,0"
+                        FontSize="11"
                         Style="{StaticResource PresetButtonStyle}" />
                 <Button Content="144"
                         Command="{Binding SetFpsPresetCommand}"
                         CommandParameter="144"
-                        Height="22"
-                        Margin="2,0,0,0"
+                        Height="24"
+                        Margin="3,0,0,0"
+                        FontSize="11"
                         Style="{StaticResource PresetButtonStyle}" />
             </UniformGrid>
 
@@ -470,34 +583,38 @@
             <!-- 3. APPLY BUTTON + SMART-CAP-EMPFEHLUNG (diagnostisch) -->
             <!-- ========================================== -->
             <Grid Grid.Row="4" Margin="0,0,0,8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <Button Content="Apply"
+                <Button Content="{Binding [Ui.ApplyButton], Source={x:Static loc:Localization.Instance}}"
                         Command="{Binding ApplyCommand}"
                         Style="{StaticResource PrimaryButtonStyle}"
                         Height="28"
                         Margin="0,0,6,0" />
 
-                <!-- Smart-Cap: nur Empfehlung; "Übernehmen" setzt NUR TargetFps (kein RTSS-Write) -->
+                <!-- Smart-Cap: recommendation only; "Apply recommendation" sets ONLY TargetFps (no RTSS write) -->
                 <StackPanel Grid.Column="1"
                             Orientation="Horizontal"
                             VerticalAlignment="Center"
                             Visibility="{Binding SmartCapHasRecommendation, Converter={StaticResource BoolToVisibility}}">
-                    <TextBlock Text="Smart-Cap:"
-                               FontSize="10"
+                    <TextBlock Text="{Binding [Ui.SmartCapLabel], Source={x:Static loc:Localization.Instance}}"
+                               FontSize="11"
                                Foreground="{StaticResource TextMuted}"
                                VerticalAlignment="Center" />
                     <TextBlock Text="{Binding SmartCapDisplay, Mode=OneWay}"
-                               FontSize="11"
+                               FontSize="12"
                                FontWeight="SemiBold"
                                Foreground="{StaticResource AccentColor}"
                                Margin="3,0,6,0"
                                VerticalAlignment="Center"
                                ToolTip="{Binding SmartCapReason}" />
-                    <Button Content="Übernehmen"
+                    <Button Content="{Binding [Ui.AcceptSmartCapButton], Source={x:Static loc:Localization.Instance}}"
                             Command="{Binding AcceptSmartCapCommand}"
                             Height="22"
                             Padding="8,0"
@@ -505,26 +622,66 @@
                             Style="{StaticResource PresetButtonStyle}"
                             ToolTip="{Binding SmartCapReason}" />
                 </StackPanel>
+
+                <!-- Anti-Cheat note: RTSS limits via process injection. Shown whenever a
+                     game is selected for limiting; driver-level limits are safer in
+                     online/competitive games. Localized, dismissable via ✕ (persisted). -->
+                <Grid Grid.Row="1"
+                      Grid.ColumnSpan="2"
+                      Margin="0,4,0,0"
+                      Visibility="{Binding IsAntiCheatNoteVisible, Converter={StaticResource BoolToVisibility}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock FontSize="10"
+                               Foreground="{StaticResource StatusYellow}"
+                               TextWrapping="Wrap"
+                               Text="{Binding [Ui.AntiCheatNote], Mode=OneWay, Source={x:Static loc:Localization.Instance}}" />
+                    <Button Grid.Column="1"
+                            Command="{Binding HideAntiCheatNoteCommand}"
+                            Width="16"
+                            Height="16"
+                            Margin="6,0,0,0"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Foreground="{StaticResource TextMuted}"
+                            Cursor="Hand"
+                            ToolTip="{Binding [Ui.HideAntiCheatNoteTooltip], Mode=OneWay, Source={x:Static loc:Localization.Instance}}">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border Background="{TemplateBinding Background}" CornerRadius="3">
+                                    <TextBlock Text="✕" FontSize="9" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource StatusYellow}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                </Grid>
             </Grid>
 
             <!-- ========================================== -->
             <!-- 5. PROFIL-BACKUP / RESTORE (explizite Aktion) -->
             <!-- ========================================== -->
             <UniformGrid Grid.Row="5" Columns="2" Margin="0,0,0,8">
-                <Button Content="⭳ Backup"
+                <Button Content="{Binding [Ui.BackupButton], Source={x:Static loc:Localization.Instance}}"
                         Command="{Binding CreateBackupCommand}"
                         Height="22"
                         Margin="0,0,2,0"
                         FontSize="10"
                         Style="{StaticResource PresetButtonStyle}"
-                        ToolTip="Gespeicherte Spielprofile in eine JSON-Datei sichern" />
-                <Button Content="⭱ Restore"
+                        ToolTip="{Binding [Ui.BackupTooltip], Mode=OneWay, Source={x:Static loc:Localization.Instance}}" />
+                <Button Content="{Binding [Ui.RestoreButton], Source={x:Static loc:Localization.Instance}}"
                         Command="{Binding RestoreBackupCommand}"
                         Height="22"
                         Margin="2,0,0,0"
                         FontSize="10"
                         Style="{StaticResource PresetButtonStyle}"
-                        ToolTip="Gespeicherte Spielprofile aus einer Backup-Datei wiederherstellen (aktuelle Profile werden vorher automatisch gesichert)" />
+                        ToolTip="{Binding [Ui.RestoreTooltip], Mode=OneWay, Source={x:Static loc:Localization.Instance}}" />
             </UniformGrid>
 
             <!-- ========================================== -->
@@ -548,7 +705,7 @@
                                 VerticalAlignment="Top"
                                 Margin="6,4"
                                 Orientation="Horizontal">
-                        <TextBlock Text="Target: "
+                        <TextBlock Text="{Binding [Ui.TargetOverlayLabel], Source={x:Static loc:Localization.Instance}}"
                                    FontSize="9"
                                    Foreground="{StaticResource TextMuted}" />
                         <TextBlock Text="{Binding TargetFrameTimeMs, Mode=OneWay, StringFormat={}{0:F2} ms}"
@@ -565,7 +722,7 @@
             <Border Grid.Row="7"
                     Background="{StaticResource BgCard}"
                     CornerRadius="5"
-                    Padding="8,5">
+                    Padding="10,6">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -581,30 +738,30 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <!-- FPS & Frametime (RTSS): Striche bzw. "nicht verfügbar" bei fehlenden Daten -->
-                        <TextBlock FontSize="11" Foreground="{StaticResource TextPrimary}">
+                        <!-- FPS & frame time (RTSS): dashes / "not available" when there is no data -->
+                        <TextBlock FontSize="12" Foreground="{StaticResource TextPrimary}">
                             <Run Text="{Binding CurrentFpsDisplay, Mode=OneWay}" FontWeight="SemiBold" />
-                            <Run Text=" FPS" Foreground="{StaticResource TextMuted}" />
+                            <Run Text="{Binding [Ui.FpsUnit], Mode=OneWay, Source={x:Static loc:Localization.Instance}}" Foreground="{StaticResource TextMuted}" />
                             <Run Text=" · " Foreground="{StaticResource TextMuted}" />
                             <Run Text="{Binding CurrentFrameTimeDisplay, Mode=OneWay}" Foreground="{StaticResource TextSecondary}" />
                         </TextBlock>
 
                         <!-- GPU & CPU Temperatur (MSI Afterburner) -->
-                        <TextBlock Grid.Column="1" FontSize="11" Foreground="{StaticResource TextPrimary}">
-                            <Run Text="GPU " Foreground="{StaticResource TextSecondary}" />
+                        <TextBlock Grid.Column="1" FontSize="12" Foreground="{StaticResource TextPrimary}">
+                            <Run Text="{Binding [Ui.GpuLabel], Mode=OneWay, Source={x:Static loc:Localization.Instance}}" Foreground="{StaticResource TextSecondary}" />
                             <Run Text="{Binding GpuTemperatureDisplay, Mode=OneWay}" FontWeight="Medium" />
                             <Run Text=" · " Foreground="{StaticResource TextMuted}" />
-                            <Run Text="CPU " Foreground="{StaticResource TextSecondary}" />
+                            <Run Text="{Binding [Ui.CpuLabel], Mode=OneWay, Source={x:Static loc:Localization.Instance}}" Foreground="{StaticResource TextSecondary}" />
                             <Run Text="{Binding CpuTemperatureDisplay, Mode=OneWay}" FontWeight="Medium" />
                         </TextBlock>
                     </Grid>
 
                     <!-- Zeile 2: 1% / 0,1% Low (aus RTSS-Messwerten, Striche bei zu wenigen Samples) -->
-                    <TextBlock Grid.Row="1" FontSize="10" Foreground="{StaticResource TextSecondary}" Margin="0,3,0,0">
-                        <Run Text="1% Low " Foreground="{StaticResource TextMuted}" />
+                    <TextBlock Grid.Row="1" FontSize="11" Foreground="{StaticResource TextSecondary}" Margin="0,3,0,0">
+                        <Run Text="{Binding [Ui.Low1Label], Mode=OneWay, Source={x:Static loc:Localization.Instance}}" Foreground="{StaticResource TextMuted}" />
                         <Run Text="{Binding OnePercentLowDisplay, Mode=OneWay}" FontWeight="SemiBold" />
                         <Run Text=" · " Foreground="{StaticResource TextMuted}" />
-                        <Run Text="0,1% Low " Foreground="{StaticResource TextMuted}" />
+                        <Run Text="{Binding [Ui.Low01Label], Mode=OneWay, Source={x:Static loc:Localization.Instance}}" Foreground="{StaticResource TextMuted}" />
                         <Run Text="{Binding PointOnePercentLowDisplay, Mode=OneWay}" FontWeight="SemiBold" />
                     </TextBlock>
 
@@ -619,23 +776,23 @@
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
                                     ToolTip="{Binding LimiterDetailsText}">
                             <!-- RTSS Status -->
-                            <TextBlock Text="RTSS" FontSize="9" Foreground="{StaticResource TextMuted}" Margin="0,0,3,0" />
-                            <Ellipse Width="6" Height="6" Margin="0,0,8,0"
+                            <TextBlock Text="{Binding [Ui.RtssLabel], Source={x:Static loc:Localization.Instance}}" FontSize="11" Foreground="{StaticResource TextMuted}" Margin="0,0,3,0" />
+                            <Ellipse Width="7" Height="7" Margin="0,0,8,0"
                                      Fill="{Binding IsRtssConnected, Converter={StaticResource BoolToBrush}}" />
                             
                             <!-- Afterburner Status -->
-                            <TextBlock Text="Afterburner" FontSize="9" Foreground="{StaticResource TextMuted}" Margin="0,0,3,0" />
-                            <Ellipse Width="6" Height="6"
+                            <TextBlock Text="{Binding [Ui.AfterburnerLabel], Source={x:Static loc:Localization.Instance}}" FontSize="11" Foreground="{StaticResource TextMuted}" Margin="0,0,3,0" />
+                            <Ellipse Width="7" Height="7"
                                      Fill="{Binding IsAfterburnerConnected, Converter={StaticResource BoolToBrush}}" />
 
                             <!-- Monitor-/Refreshrate des Zielmonitors (Fenster des Spiels, sonst primär) -->
-                            <TextBlock Text="Monitor" FontSize="9" Foreground="{StaticResource TextMuted}" Margin="8,0,3,0" />
-                            <TextBlock Text="{Binding MonitorRefreshRateDisplay, Mode=OneWay}" FontSize="9"
+                            <TextBlock Text="{Binding [Ui.MonitorLabel], Source={x:Static loc:Localization.Instance}}" FontSize="11" Foreground="{StaticResource TextMuted}" Margin="8,0,3,0" />
+                            <TextBlock Text="{Binding MonitorRefreshRateDisplay, Mode=OneWay}" FontSize="11"
                                        Foreground="{StaticResource TextPrimary}" FontWeight="Medium"
-                                       ToolTip="Aktive Bildwiederholrate des Zielmonitors (Fenster des überwachten Prozesses, sonst primärer Monitor)" />
+                                       ToolTip="{Binding [Ui.MonitorTooltip], Mode=OneWay, Source={x:Static loc:Localization.Instance}}" />
 
                             <!-- Limiter-Konflikt-Warnung (diagnostisch, nur wenn ≥2 aktiv erkannt) -->
-                            <TextBlock Text="⚠" FontSize="9" Margin="8,0,0,0"
+                            <TextBlock Text="⚠" FontSize="11" Margin="8,0,0,0"
                                        Foreground="{StaticResource StatusRed}"
                                        Visibility="{Binding HasLimiterConflict, Converter={StaticResource BoolToVisibility}}"
                                        ToolTip="{Binding LimiterDetailsText}" />
@@ -644,13 +801,13 @@
                         <!-- Update-Status + Status-Info / Feedback-Text -->
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                             <TextBlock Text="{Binding UpdateStatusText}"
-                                       FontSize="9"
+                                       FontSize="11"
                                        Foreground="{StaticResource TextSecondary}"
                                        Margin="0,0,10,0"
                                        MaxWidth="260"
                                        TextTrimming="CharacterEllipsis" />
                             <TextBlock Text="{Binding StatusFeedback}"
-                                       FontSize="9"
+                                       FontSize="11"
                                        Foreground="{StaticResource TextSecondary}" />
                         </StackPanel>
                     </Grid>
@@ -664,18 +821,18 @@
                                 Orientation="Horizontal"
                                 Margin="0,5,0,0"
                                 ToolTip="{Binding VrrDetailsText}">
-                        <TextBlock Text="VRR"
-                                   FontSize="10"
+                        <TextBlock Text="{Binding [Ui.VrrLabel], Source={x:Static loc:Localization.Instance}}"
+                                   FontSize="11"
                                    FontWeight="SemiBold"
                                    Foreground="{StaticResource TextMuted}"
                                    VerticalAlignment="Center"
                                    Margin="0,0,6,0" />
-                        <Ellipse Width="8" Height="8"
+                        <Ellipse Width="9" Height="9"
                                  VerticalAlignment="Center"
                                  Margin="0,0,6,0"
                                  Fill="{Binding VrrStatusBrush, Mode=OneWay}" />
                         <TextBlock Text="{Binding VrrStatusDisplay, Mode=OneWay}"
-                                   FontSize="11"
+                                   FontSize="12"
                                    FontWeight="SemiBold"
                                    Foreground="{StaticResource TextPrimary}"
                                    VerticalAlignment="Center" />

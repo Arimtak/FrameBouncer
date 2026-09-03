@@ -14,8 +14,13 @@ namespace FrameBouncer.Tests;
 /// VRR-Zustände werden ehrlich unterschieden, „Übernehmen“ setzt NUR TargetFps
 /// (kein RTSS-Write), erst „Apply“ schreibt RTSS. Keine Berechnung im 25-ms-Tick.
 /// </summary>
-public class SmartCapTests
+public class SmartCapTests : IDisposable
 {
+    // Die Reason-Texte werden auf Deutsch geprüft („nicht verfügbar“).
+    // Dispose stellt Englisch wieder her (Tests laufen sequenziell).
+    public SmartCapTests() => FrameBouncer.Localization.SetLanguage("de");
+    public void Dispose() => FrameBouncer.Localization.SetLanguage("en");
+
     // --- Mocks (bestehender Stil) ----------------------------------------
 
     private class MockRtssService : IRtssService

@@ -4,33 +4,42 @@ using System.IO;
 namespace FrameBouncer.Services;
 
 /// <summary>
-/// Startet den separaten FrameBouncer.Updater.exe (Spec Punkt 10):
-/// UseShellExecute=false und KEIN „runas“-Verb → kein UAC beim normalen
-/// Update-Start (Punkt 15/24). Der Updater fordert Rechte nur bei Bedarf
-/// (z. B. Program Files) selbst an. Nie werfend.
+/// Startet den Update-Modus der portablen Single-EXE (Spec Punkt 10):
+/// Die laufende FrameBouncer.exe überschreibt sich NIE selbst – sie kopiert
+/// sich in ein Temp-Verzeichnis, startet die Kopie mit „--updater“ und beendet
+/// sich. Der Updater (Temp-Kopie) ersetzt die Dateien im Installationsverzeichnis
+/// und startet die App neu. Kein UAC beim normalen Start; der Updater fordert
+/// Rechte nur bei Bedarf selbst an (Punkt 24). Nie werfend.
 /// </summary>
 public class UpdateInstaller : IUpdateInstaller
 {
     private readonly string? _updaterExeOverride;
 
-    /// <summary>Test-Konstruktor: fester Pfad zum Updater (auch nicht vorhanden).</summary>
+    /// <summary>Test-Konstruktor: fester Pfad zur zu kopierenden EXE (auch nicht vorhanden).</summary>
     public UpdateInstaller(string? updaterExeOverride = null) => _updaterExeOverride = updaterExeOverride;
 
     public UpdateLaunchResult LaunchUpdater(string installDir, string packageZip, string version)
     {
         try
         {
-            var updaterExe = _updaterExeOverride
-                ?? (File.Exists(Path.Combine(installDir, "FrameBouncer.Updater.exe"))
-                    ? Path.Combine(installDir, "FrameBouncer.Updater.exe")
-                    : Path.Combine(AppContext.BaseDirectory, "FrameBouncer.Updater.exe"));
-            if (!File.Exists(updaterExe))
-                return new UpdateLaunchResult { Error = "Updater fehlt im Installationsverzeichnis." };
+            // Quelle: die eigene (portable) EXE bzw. der Test-Override.
+            string? sourceExe = _updaterExeOverride ?? Environment.ProcessPath;
+            if (string.IsNullOrEmpty(sourceExe) || !File.Exists(sourceExe))
+                return new UpdateLaunchResult { Error = Localization.T("Update.UpdaterMissing") };
+
+            // Der Updater muss von einer KOPIE laufen: Eine laufende EXE kann
+            // sich (und damit die installierte FrameBouncer.exe) nicht selbst
+            // überschreiben. Die Kopie läuft aus %TEMP% und ersetzt danach die
+            // Dateien im Installationsverzeichnis.
+            string tempDir = Path.Combine(Path.GetTempPath(), "FrameBouncer-Update-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDir);
+            string updaterExe = Path.Combine(tempDir, "FrameBouncer.exe");
+            File.Copy(sourceExe, updaterExe, overwrite: true);
 
             var psi = new ProcessStartInfo
             {
                 FileName = updaterExe,
-                Arguments = $"--install-dir \"{installDir}\" --package \"{packageZip}\" --version \"{version}\"",
+                Arguments = $"--updater --lang={Localization.LanguageCode} --install-dir \"{installDir}\" --package \"{packageZip}\" --version \"{version}\"",
                 WorkingDirectory = installDir,
                 UseShellExecute = false,
                 CreateNoWindow = true
@@ -41,7 +50,7 @@ public class UpdateInstaller : IUpdateInstaller
         }
         catch (Exception ex)
         {
-            return new UpdateLaunchResult { Error = "Updater konnte nicht gestartet werden: " + ex.Message };
+            return new UpdateLaunchResult { Error = Localization.TFmt("Update.UpdaterLaunchFailedFmt", ex.Message) };
         }
     }
 }

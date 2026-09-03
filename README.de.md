@@ -47,6 +47,29 @@ wieder von selbst. Schließt du FrameBouncer, werden alle Limits wieder aufgehob
 Unten zeigt das Programm live FPS, Frametime, 1%-/0,1%-Low und (wenn MSI Afterburner läuft)
 GPU-/CPU-Temperatur.
 
+## Anti-Cheat & Fair Play
+
+RTSS begrenzt FPS, indem es eine **Hook-DLL in den Spielprozess injiziert**
+(`RTSSHooks64.dll`). Genau das beobachten Anti-Cheat-Systeme (Easy Anti-Cheat,
+BattlEye, VAC, Kernel-Anti-Cheats) — die Nutzung von RTSS in Online-Spielen birgt
+daher ein **kleines, aber reales Risiko** von Fehlerkennung bis hin zu einem Bann;
+manche Spiele starten gar nicht erst, solange RTSS läuft.
+
+FrameBouncer selbst injiziert **nichts** in Spiele: Es schreibt nur RTSS-Profil-Dateien
+und liest den RTSS-Shared-Memory für Diagnosen. Das Anti-Cheat-Risiko geht von RTSS
+aus, nicht von FrameBouncer.
+
+**Sichere Alternativen (ohne Prozess-Injektion):**
+
+- **In-Game-FPS-Limiter** — die sicherste Option.
+- **NVIDIA Max Frame Rate** (pro Spiel in der NVIDIA-Systemsteuerung / NVIDIA App) —
+  auf Treiberebene.
+- **AMD Frame Rate Target Control (FRTC)** — auf Treiberebene.
+
+**Empfehlung:** Bei Singleplayer-Spielen ist RTSS unproblematisch. Bei
+Competitive-Online-Spielen besser ein Treiber- oder In-Game-Limit verwenden — und
+RTSS aktuell halten, wenn du es nutzt.
+
 ## Sprache
 
 Oben im Fenster zwischen **Deutsch** und **English** umschalten. Die Auswahl wird gespeichert

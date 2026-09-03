@@ -22,9 +22,9 @@ public class ProfileBackupService : IProfileBackupService
 
     public ProfileBackupService(string? backupDirectory = null)
     {
-        _backupDirectory = backupDirectory ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "FrameBouncer", "Backups");
+        // Produktion: Dokumente\FrameBouncer\Backups (portable EXE, zentrale
+        // Benutzerdaten) – Test-Override bleibt möglich.
+        _backupDirectory = backupDirectory ?? UserDataPaths.BackupsDirectory;
     }
 
     public string BackupDirectory => _backupDirectory;

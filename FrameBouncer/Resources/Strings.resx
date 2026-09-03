@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Ui.SimBadgeTooltip" xml:space="preserve"><value>RTSS &amp; MSI Afterburner are running in simulation mode</value></data>
+  <data name="Ui.PinTooltip" xml:space="preserve"><value>Always keep on top</value></data>
+  <data name="Ui.PinButton" xml:space="preserve"><value>Pin</value></data>
+  <data name="Ui.AutostartTooltip" xml:space="preserve"><value>Enable Windows autostart</value></data>
+  <data name="Ui.AutostartButton" xml:space="preserve"><value>Autostart</value></data>
+  <data name="Ui.TrayTooltip" xml:space="preserve"><value>Close hides the window, the app keeps running in the tray</value></data>
+  <data name="Ui.TrayButton" xml:space="preserve"><value>Tray</value></data>
+  <data name="Ui.CloseTooltip" xml:space="preserve"><value>Exit</value></data>
+  <data name="Ui.StartWithAppLabel" xml:space="preserve"><value>Start with app:</value></data>
+  <data name="Ui.StartRtssTooltip" xml:space="preserve"><value>Start RTSS automatically on next app start if it is not running (no UAC prompt)</value></data>
+  <data name="Ui.StartAfterburnerTooltip" xml:space="preserve"><value>Start MSI Afterburner automatically on next app start if it is not running (no UAC prompt)</value></data>
+  <data name="Ui.CheckUpdatesTooltip" xml:space="preserve"><value>Check for updates (GitHub Releases)</value></data>
+  <data name="Ui.CheckUpdatesButton" xml:space="preserve"><value>⟳ Updates</value></data>
+  <data name="Ui.DownloadUpdateTooltip" xml:space="preserve"><value>Download, verify and install the new version</value></data>
+  <data name="Ui.DownloadUpdateButton" xml:space="preserve"><value>⬇ Update</value></data>
+  <data name="Ui.LimiterLabel" xml:space="preserve"><value>Limiter</value></data>
+  <data name="Ui.RefreshProcessesTooltip" xml:space="preserve"><value>Refresh processes</value></data>
+  <data name="Ui.PickWindowTooltip" xml:space="preserve"><value>Pick window (click on the game)</value></data>
+  <data name="Ui.TargetFpsLabel" xml:space="preserve"><value>Target FPS</value></data>
+  <data name="Ui.SmartCapLabel" xml:space="preserve"><value>Smart-Cap:</value></data>
+  <data name="Ui.AcceptSmartCapButton" xml:space="preserve"><value>Accept</value></data>
+  <data name="Ui.BackupButton" xml:space="preserve"><value>⭳ Backup</value></data>
+  <data name="Ui.RestoreButton" xml:space="preserve"><value>⭱ Restore</value></data>
+  <data name="Ui.BackupTooltip" xml:space="preserve"><value>Save the saved game profiles to a JSON file</value></data>
+  <data name="Ui.RestoreTooltip" xml:space="preserve"><value>Restore saved game profiles from a backup file (current profiles are backed up automatically first)</value></data>
+  <data name="Ui.ApplyButton" xml:space="preserve"><value>Apply</value></data>
+  <data name="Ui.TargetOverlayLabel" xml:space="preserve"><value>Target: </value></data>
+  <data name="Ui.FpsUnit" xml:space="preserve"><value> FPS</value></data>
+  <data name="Ui.GpuLabel" xml:space="preserve"><value>GPU </value></data>
+  <data name="Ui.CpuLabel" xml:space="preserve"><value>CPU </value></data>
+  <data name="Ui.Low1Label" xml:space="preserve"><value>1% Low </value></data>
+  <data name="Ui.Low01Label" xml:space="preserve"><value>0.1% Low </value></data>
+  <data name="Ui.RtssLabel" xml:space="preserve"><value>RTSS</value></data>
+  <data name="Ui.AfterburnerLabel" xml:space="preserve"><value>Afterburner</value></data>
+  <data name="Ui.MonitorLabel" xml:space="preserve"><value>Monitor</value></data>
+  <data name="Ui.MonitorTooltip" xml:space="preserve"><value>Active refresh rate of the target monitor (window of the watched process, otherwise primary monitor)</value></data>
+  <data name="Ui.VrrLabel" xml:space="preserve"><value>VRR</value></data>
+  <data name="Ui.AntiCheatNote" xml:space="preserve"><value>⚠ RTSS limits games by injecting a hook into the game process. In online/competitive games, a driver-level limit (NVIDIA Max Frame Rate / AMD FRTC) is safer.</value></data>
+  <data name="Ui.HideAntiCheatNoteTooltip" xml:space="preserve"><value>Hide this note (re-enable in settings.json: ShowAntiCheatNote)</value></data>
+  <data name="Tray.Text" xml:space="preserve"><value>FrameBouncer - Double-click to open</value></data>
+  <data name="Tray.ShowWindow" xml:space="preserve"><value>Show window</value></data>
+  <data name="Tray.Exit" xml:space="preserve"><value>Exit</value></data>
+  <data name="Status.Ready" xml:space="preserve"><value>Ready</value></data>
+  <data name="Status.SmartCapAcceptedFmt" xml:space="preserve"><value>Smart-Cap applied: {0} FPS - now press Apply</value></data>
+  <data name="Status.PresetFmt" xml:space="preserve"><value>Preset: {0} FPS</value></data>
+  <data name="Status.TargetSelectedFmt" xml:space="preserve"><value>Target: {0}</value></data>
+  <data name="Status.LimitAppliedSimulatedFmt" xml:space="preserve"><value>Limit {0} FPS requested (simulated)</value></data>
+  <data name="Status.LimitAppliedFmt" xml:space="preserve"><value>Limit {0} FPS → {1}</value></data>
+  <data name="Status.ProcessesCountFmt" xml:space="preserve"><value>Processes: {0}</value></data>
+  <data name="Status.AutoApplyFmt" xml:space="preserve"><value>Auto-Apply: {0} → {1} FPS</value></data>
+  <data name="Status.AutoApplyFailedFmt" xml:space="preserve"><value>Auto-Apply failed: {0} ({1})</value></data>
+  <data name="Status.PickWindowHint" xml:space="preserve"><value>Click on a window... (ESC to cancel)</value></data>
+  <data name="Status.WindowDetectedFmt" xml:space="preserve"><value>Window detected: {0}</value></data>
+  <data name="Status.NoWindowDetected" xml:space="preserve"><value>No suitable application detected</value></data>
+  <data name="Status.WindowDetectFailed" xml:space="preserve"><value>Window detection failed</value></data>
+  <data name="Status.PickCancelled" xml:space="preserve"><value>Selection cancelled</value></data>
+  <data name="Status.NoRtssDataFmt" xml:space="preserve"><value>No RTSS data (PID={0})</value></data>
+  <data name="Status.ConnectedNoGameFmt" xml:space="preserve"><value>Connected: {0} | No game active</value></data>
+  <data name="Status.ReadyStartGame" xml:space="preserve"><value>Ready - start a game</value></data>
+  <data name="Status.AutostartEnabled" xml:space="preserve"><value>Autostart enabled (registry: HKCU\...\Run)</value></data>
+  <data name="Status.AutostartDisabled" xml:space="preserve"><value>Autostart disabled</value></data>
+  <data name="Status.RtssStartWithAppOn" xml:space="preserve"><value>RTSS will start with the app from now on</value></data>
+  <data name="Status.RtssStartWithAppOff" xml:space="preserve"><value>RTSS autostart disabled</value></data>
+  <data name="Status.AfterburnerStartWithAppOn" xml:space="preserve"><value>Afterburner will start with the app from now on</value></data>
+  <data name="Status.AfterburnerStartWithAppOff" xml:space="preserve"><value>Afterburner autostart disabled</value></data>
+  <data name="Backup.Unavailable" xml:space="preserve"><value>Backup not available</value></data>
+  <data name="Backup.CreatedFmt" xml:space="preserve"><value>Backup: {0} ({1} profiles)</value></data>
+  <data name="Backup.FailedAccess" xml:space="preserve"><value>Backup failed: access denied</value></data>
+  <data name="Backup.FailedWrite" xml:space="preserve"><value>Backup failed: file could not be written</value></data>
+  <data name="Backup.Failed" xml:space="preserve"><value>Backup failed</value></data>
+  <data name="Backup.RestoreUnavailable" xml:space="preserve"><value>Restore not available</value></data>
+  <data name="Backup.RestoreFailedKeep" xml:space="preserve"><value>Restore failed - current profiles were kept</value></data>
+  <data name="Backup.RestoreDoneFmt" xml:space="preserve"><value>Restore: {0} profiles restored</value></data>
+  <data name="Backup.ConfirmTitle" xml:space="preserve"><value>Restore profile backup</value></data>
+  <data name="Backup.ConfirmMessageFmt" xml:space="preserve"><value>Restore backup?&#10;&#10;Created: {0}&#10;Profiles: {1} ({2} active)&#10;&#10;The current profiles are backed up automatically first.</value></data>
+  <data name="Backup.Filter" xml:space="preserve"><value>FrameBouncer profile backup (*.json)|*.json|All files (*.*)|*.*</value></data>
+  <data name="Backup.SaveTitle" xml:space="preserve"><value>Save profile backup</value></data>
+  <data name="Backup.OpenTitle" xml:space="preserve"><value>Restore profile backup</value></data>
+  <data name="Backup.JsonInvalid" xml:space="preserve"><value>Backup could not be read. Reason: invalid JSON format.</value></data>
+  <data name="Backup.FormatInvalid" xml:space="preserve"><value>Backup could not be read. Reason: invalid format.</value></data>
+  <data name="Backup.UnsupportedVersionFmt" xml:space="preserve"><value>Unsupported backup version: {0} (supported: {1}).</value></data>
+  <data name="Backup.EmptyEntry" xml:space="preserve"><value>Invalid backup: empty profile entry.</value></data>
+  <data name="Backup.NoProcessName" xml:space="preserve"><value>Invalid backup: profile without process/EXE name.</value></data>
+  <data name="Backup.InvalidFileNameFmt" xml:space="preserve"><value>Invalid backup: invalid file name "{0}".</value></data>
+  <data name="Backup.InvalidFpsFmt" xml:space="preserve"><value>Invalid backup: invalid FPS value {0} for "{1}" (allowed {2}-{3}).</value></data>
+  <data name="Backup.DuplicateProfileFmt" xml:space="preserve"><value>Invalid backup: duplicate profile for "{0}".</value></data>
+  <data name="Backup.FileNotFound" xml:space="preserve"><value>Backup file not found.</value></data>
+  <data name="Backup.FileUnreadable" xml:space="preserve"><value>Backup file could not be read.</value></data>
+  <data name="Update.CheckUnavailable" xml:space="preserve"><value>Update check not available.</value></data>
+  <data name="Update.Checking" xml:space="preserve"><value>Checking for updates…</value></data>
+  <data name="Update.CheckFailed" xml:space="preserve"><value>Update check not possible.</value></data>
+  <data name="Update.NoUpdateToInstall" xml:space="preserve"><value>No update available to install.</value></data>
+  <data name="Update.Downloading" xml:space="preserve"><value>Downloading update…</value></data>
+  <data name="Update.DownloadFailed" xml:space="preserve"><value>Update could not be downloaded.</value></data>
+  <data name="Update.VerifyFailed" xml:space="preserve"><value>Update could not be verified.</value></data>
+  <data name="Update.Installing" xml:space="preserve"><value>Installing update…</value></data>
+  <data name="Update.InstallFailedKeep" xml:space="preserve"><value>Update could not be installed. The previous version is kept.</value></data>
+  <data name="Update.NoReleaseFmt" xml:space="preserve"><value>Update source not found ({0}/{1}).</value></data>
+  <data name="Update.RateLimit" xml:space="preserve"><value>Update check not possible (rate limit).</value></data>
+  <data name="Update.HttpErrorFmt" xml:space="preserve"><value>Update check not possible (HTTP {0}).</value></data>
+  <data name="Update.InvalidReleaseData" xml:space="preserve"><value>Update check not possible (invalid release data).</value></data>
+  <data name="Update.NoConnection" xml:space="preserve"><value>No internet connection.</value></data>
+  <data name="Update.Timeout" xml:space="preserve"><value>No internet connection (timeout).</value></data>
+  <data name="Update.InvalidResponse" xml:space="preserve"><value>Update check not possible (invalid response).</value></data>
+  <data name="Update.GenericFailure" xml:space="preserve"><value>Update check not possible.</value></data>
+  <data name="Update.UpToDateStable" xml:space="preserve"><value>You are using the latest stable version.</value></data>
+  <data name="Update.UpToDate" xml:space="preserve"><value>You are using the latest version.</value></data>
+  <data name="Update.AssetMissing" xml:space="preserve"><value>A new version is available, but the update package is missing.</value></data>
+  <data name="Update.AvailableFmt" xml:space="preserve"><value>New version available: {0}</value></data>
+  <data name="Update.HttpsOnly" xml:space="preserve"><value>Downloads are only allowed over HTTPS.</value></data>
+  <data name="Update.DownloadFailedHttpFmt" xml:space="preserve"><value>Download failed (HTTP {0}).</value></data>
+  <data name="Update.ShaDownloadFailed" xml:space="preserve"><value>The hash file could not be downloaded.</value></data>
+  <data name="Update.DownloadFailedGenericFmt" xml:space="preserve"><value>Download failed: {0}</value></data>
+  <data name="Update.PackageMissing" xml:space="preserve"><value>Update package missing.</value></data>
+  <data name="Update.HashFileMissing" xml:space="preserve"><value>Hash file missing.</value></data>
+  <data name="Update.InvalidHashFile" xml:space="preserve"><value>Invalid hash file.</value></data>
+  <data name="Update.HashMismatch" xml:space="preserve"><value>SHA-256 check failed - the update will not be installed.</value></data>
+  <data name="Update.VerifyFailedFmt" xml:space="preserve"><value>Verification failed: {0}</value></data>
+  <data name="Update.UpdaterMissing" xml:space="preserve"><value>Updater missing in the installation directory.</value></data>
+  <data name="Update.UpdaterLaunchFailedFmt" xml:space="preserve"><value>Updater could not be started: {0}</value></data>
+  <data name="Update.InstallDirMissing" xml:space="preserve"><value>Installation directory missing - update aborted.</value></data>
+  <data name="Update.PackageMissingCore" xml:space="preserve"><value>Update package missing - update aborted.</value></data>
+  <data name="Update.InvalidAppName" xml:space="preserve"><value>Invalid app name.</value></data>
+  <data name="Update.AppNotExited" xml:space="preserve"><value>FrameBouncer was not closed - update aborted.</value></data>
+  <data name="Update.PackageReadFailed" xml:space="preserve"><value>The update package could not be read.</value></data>
+  <data name="Update.UnsafePath" xml:space="preserve"><value>The update package contains an unsafe path and was rejected.</value></data>
+  <data name="Update.NoFiles" xml:space="preserve"><value>The update package contains no files.</value></data>
+  <data name="Update.AppMissingAfterUpdate" xml:space="preserve"><value>FrameBouncer.exe is missing after the update.</value></data>
+  <data name="Update.AppStartFailed" xml:space="preserve"><value>The app could not be started after the update.</value></data>
+  <data name="Update.StartFailedRolledBack" xml:space="preserve"><value>The update did not start - the previous version was restored.</value></data>
+  <data name="Update.InstallFailedRolledBackFmt" xml:space="preserve"><value>Installation failed - the previous version was restored. {0}</value></data>
+  <data name="Update.SuccessFmt" xml:space="preserve"><value>Update installed successfully ({0} files replaced).</value></data>
+  <data name="Update.Usage" xml:space="preserve"><value>Usage: FrameBouncer --updater --install-dir &lt;directory&gt; --package &lt;package.zip&gt; [--version &lt;v&gt;]</value></data>
+  <data name="Update.InstallDirMissingFmt" xml:space="preserve"><value>Installation directory missing: {0}</value></data>
+  <data name="Update.PackageMissingFmt" xml:space="preserve"><value>Update package missing: {0}</value></data>
+  <data name="Update.FailedFmt" xml:space="preserve"><value>Update failed: {0}</value></data>
+  <data name="Display.VrrActive" xml:space="preserve"><value>Active</value></data>
+  <data name="Display.VrrInactive" xml:space="preserve"><value>Inactive</value></data>
+  <data name="Display.VrrSupported" xml:space="preserve"><value>Supported</value></data>
+  <data name="Display.VrrNotSupported" xml:space="preserve"><value>Not supported</value></data>
+  <data name="Display.VrrUnknown" xml:space="preserve"><value>Unknown</value></data>
+  <data name="Display.VrrUnavailable" xml:space="preserve"><value>Not available</value></data>
+  <data name="Display.VrrDetailsUnknown" xml:space="preserve"><value>VRR status not determinable</value></data>
+  <data name="Display.VrrDetailsUnavailable" xml:space="preserve"><value>VRR status not available (no valid monitor)</value></data>
+  <data name="Display.VrrStateUnknownNoApi" xml:space="preserve"><value>Unknown (no public Windows API)</value></data>
+  <data name="Display.TechNone" xml:space="preserve"><value>None</value></data>
+  <data name="Display.VrrDetailsFmt" xml:space="preserve"><value>Support: {0}&#10;Active status: {1}&#10;Technology: {2}</value></data>
+  <data name="Display.NoDataFrameTime" xml:space="preserve"><value>not available</value></data>
+  <data name="Display.SmartCapNoSuggestion" xml:space="preserve"><value>No suggestion (VRR status not determinable)</value></data>
+  <data name="Display.LimiterOnFmt" xml:space="preserve"><value>{0}: {1} FPS</value></data>
+  <data name="Display.LimiterActiveFmt" xml:space="preserve"><value>{0}: active</value></data>
+  <data name="Display.LimiterOffFmt" xml:space="preserve"><value>{0}: Off</value></data>
+  <data name="Display.LimiterUnavailableFmt" xml:space="preserve"><value>{0}: Not available</value></data>
+  <data name="Display.LimiterUnknownFmt" xml:space="preserve"><value>{0}: Unknown</value></data>
+  <data name="Display.LowestLimitFmt" xml:space="preserve"><value>lowest known limit: {0} FPS</value></data>
+  <data name="Display.MultipleActive" xml:space="preserve"><value>multiple active limiters</value></data>
+  <data name="Display.ConflictPossibleFmt" xml:space="preserve"><value>⚠ Conflict possible · {0}</value></data>
+  <data name="Display.LimiterInitial" xml:space="preserve"><value>Limiter: unknown</value></data>
+  <data name="Display.NoConflict" xml:space="preserve"><value>Limiter: no conflict detected</value></data>
+  <data name="SmartCap.NoRecRefreshUnknown" xml:space="preserve"><value>No suggestion (refresh rate unknown)</value></data>
+  <data name="SmartCap.NoRecVrrUnavailable" xml:space="preserve"><value>No suggestion (VRR not available)</value></data>
+  <data name="SmartCap.NoRecVrrInactive" xml:space="preserve"><value>No suggestion (VRR inactive - a cap below the refresh rate is useless without active VRR)</value></data>
+  <data name="SmartCap.NoRecNotSupported" xml:space="preserve"><value>No suggestion (monitor does not support VRR)</value></data>
+  <data name="SmartCap.ReasonActiveFmt" xml:space="preserve"><value>{0}-Hz display with active VRR: a cap of {1} FPS stays within the variable range.</value></data>
+  <data name="SmartCap.ReasonUnknownFmt" xml:space="preserve"><value>{0}-Hz display, VRR status unknown: {1} FPS as a suggestion only.</value></data>
+  <data name="Conflict.VSyncOnlyMessage" xml:space="preserve"><value>V-Sync active - no FPS limiter conflict.</value></data>
+  <data name="Conflict.NoActiveLimiters" xml:space="preserve"><value>No active FPS limiters detected.</value></data>
+  <data name="Conflict.ActiveLimitFmt" xml:space="preserve"><value>Active limit: {0}.</value></data>
+  <data name="Conflict.MultipleLimitersFmt" xml:space="preserve"><value>Multiple FPS limiters detected ({0}). The effective limit may differ.</value></data>
+  <data name="Helper.Usage" xml:space="preserve"><value>Usage: FrameBouncer --elevated-helper [writeLimit|writeTemplate] &lt;installPath&gt; &lt;processName&gt; &lt;targetFps&gt;</value></data>
+  <data name="Helper.InvalidFpsFmt" xml:space="preserve"><value>Invalid FPS limit: {0}</value></data>
+  <data name="Helper.TemplateWrittenFmt" xml:space="preserve"><value>Template written: {0} = {1} FPS</value></data>
+  <data name="Helper.ProfileWrittenFmt" xml:space="preserve"><value>Profile written: {0} = {1} FPS</value></data>
+  <data name="Helper.AclGrantedFmt" xml:space="preserve"><value>ACL extended: {0} may write directly from now on ({1})</value></data>
+  <data name="Helper.AclTimeout" xml:space="preserve"><value>ACL extension: timeout</value></data>
+  <data name="Helper.AclFailedFmt" xml:space="preserve"><value>ACL extension not possible: {0}</value></data>
+  <data name="Helper.WriteErrorFmt" xml:space="preserve"><value>Error writing the profile: {0}</value></data>
+</root>

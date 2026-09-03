@@ -1,469 +1,465 @@
-# FrameBouncer – Architektur
+# FrameBouncer – Architecture
 
-Stand: September 2026. Beschreibt die **tatsächliche** Implementierung.
+Status: September 2026. Describes the **actual** implementation.
 
-## Überblick
+## Portable single EXE & data paths
+
+- **One file:** The distributable version is **a single portable `FrameBouncer.exe`**
+  (self-contained, win-x64, single-file publish). Elevation (`--elevated-helper`) and update
+  (`--updater`) run as dedicated modes of the same file; the WPF entry point
+  (`App.OnStartup`) dispatches to them before any UI is created.
+- **Data under Documents:** All user data lives in `Documents\FrameBouncer`
+  (`UserDataPaths`): `settings.json`, `Backups\`, `Updates\`. Nothing next to the EXE,
+  nothing in `%APPDATA%` – the EXE can therefore be moved anywhere. Earlier storage
+  locations (next to the EXE, `%APPDATA%`) are migrated once.
+
+## Overview
 
 ```
-App.OnStartup (Composition Root)
+App.OnStartup (composition root)
 │
-│   wählt je Verfügbarkeit: echte Implementierung, sonst Dummy
-├── IRtssService          → RtssService            | Fallback: DummyRtssService
-├── IAfterburnerService   → AfterburnerService     | Fallback: DummyAfterburnerService
-├── IProcessService       → ProcessService         | Fallback: DummyProcessService
-├── IAutostartService     → RegistryAutostartService (HKCU Run-Key, ohne Admin)
-├── IFrameTimeProvider    → RtssFrameTimeProvider  (immer echt, kein Simulations-Fallback)
-├── ISettingsService      → JsonSettingsService    (%APPDATA%\FrameBouncer\settings.json)
-└── IWindowPickerService  → WindowPickerService    (Fenster per Mausklick)
+│   picks per availability: real implementation, otherwise dummy
+├── IRtssService          → RtssService            | fallback: DummyRtssService
+├── IAfterburnerService   → AfterburnerService     | fallback: DummyAfterburnerService
+├── IProcessService       → ProcessService         | fallback: DummyProcessService
+├── IAutostartService     → RegistryAutostartService (HKCU Run key, no admin)
+├── IFrameTimeProvider    → RtssFrameTimeProvider  (always real, no simulation fallback)
+├── ISettingsService      → JsonSettingsService    (Documents\FrameBouncer\settings.json)
+└── IWindowPickerService  → WindowPickerService    (pick window by mouse click)
 │
-└── MainViewModel ── MainWindow (WPF, Tray, Maus-Hook)
+└── MainViewModel ── MainWindow (WPF, tray, mouse hook)
 ```
 
-## RTSS-Integration
+## RTSS integration
 
-### Lesen (FPS / Frametime)
+### Reading (FPS / frame time)
 
-- Shared Memory `RTSSSharedMemoryV2` (auch `Local\`/`Global\`-Varianten), nur lesend
+- Shared memory `RTSSSharedMemoryV2` (also `Local\`/`Global\` variants), read-only
   (`OpenFileMappingA` + `MapViewOfFile`).
-- Header: Signatur `0x52545353` („RTSS“), `AppEntrySize` @8, `AppArrOffset` @12, `AppArrSize` @16.
-- App-Entry: `ProcessID` @+0, `Name[260]` @+4, `Time0` @+268, `Time1` @+272, `Frames` @+276,
-  `FrameTime` @+280 (Mikrosekunden).
-- FPS-Berechnung: bevorzugt `1000000 / FrameTime`, sonst `1000 * Frames / (Time1 - Time0)`.
-- `RtssFrameTimeProvider` liest bevorzugt den Eintrag des **Vordergrund-Prozesses** (PID-Match),
-  sonst den Eintrag mit der höchsten FPS; hält den letzten gemessenen Wert für max. 4 Ticks
-  (~100 ms) als Puffer gegen kurze Aussetzer. Danach liefert er bewusst ein
-  `Source = Unavailable`-Sample – **keine Simulation**.
-- Die Rohwert-Umrechnung liegt im getesteten `RtssFrameDataParser`: `FrameTime` (µs) > 0 →
-  gemessene Frametime (`FT/1000` ms, FPS = 1e6/FT); sonst Fallback `Frames/(Time1−Time0)` →
-  abgeleitete Frametime (1000/FPS); beides nicht brauchbar → `Unavailable` (FT280=0 heißt
-  nie "0 ms").
-- Jedes `FrameTimeSample` trägt `Source` (Measured/Derived/Unavailable) und `ProcessName`
-  (gemessener RTSS-Entry) – Grundlage für die ehrliche Anzeige und den Spielwechsel-Reset.
+- Header: signature `0x52545353` ("RTSS"), `AppEntrySize` @8, `AppArrOffset` @12,
+  `AppArrSize` @16.
+- App entry: `ProcessID` @+0, `Name[260]` @+4, `Time0` @+268, `Time1` @+272, `Frames` @+276,
+  `FrameTime` @+280 (microseconds).
+- FPS calculation: prefer `1000000 / FrameTime`, otherwise `1000 * Frames / (Time1 - Time0)`.
+- `RtssFrameTimeProvider` prefers the entry of the **foreground process** (PID match),
+  otherwise the entry with the highest FPS; it keeps the last measured value for at most
+  4 ticks (~100 ms) as a buffer against short dropouts. Afterwards it deliberately returns a
+  `Source = Unavailable` sample – **no simulation**.
+- The raw-value conversion lives in the tested `RtssFrameDataParser`: `FrameTime` (µs) > 0 →
+  measured frame time (`FT/1000` ms, FPS = 1e6/FT); otherwise fallback `Frames/(Time1−Time0)` →
+  derived frame time (1000/FPS); neither usable → `Unavailable` (FT280=0 never means "0 ms").
+- Every `FrameTimeSample` carries `Source` (Measured/Derived/Unavailable) and `ProcessName`
+  (measured RTSS entry) – the basis for the honest display and the game-switch reset.
 
-### Monitoring-Anzeige (FPS / Frametime / 1% & 0,1% Low)
+### Monitoring display (FPS / frame time / 1% & 0.1% lows)
 
-- **FPS-Quelle:** RTSS Shared Memory (Vordergrund-Entry bevorzugt), angezeigt als gerundete
-  Ganzzahl; ohne gültige Daten `--`.
-- **Frametime-Quelle:** bevorzugt die gemessene `dwFrameTime` (µs → ms); nur wenn RTSS keine
-  liefert, die abgeleitete `1000/FPS` – in der UI mit `≈` gekennzeichnet. Ohne Daten:
-  `nicht verfügbar`.
-- **1%-Low-Methode** (identisch zum aggregierten Ansatz gängiger Benchmark-Tools): die letzten
-  N Frametimes im Ringpuffer sortieren, `k = max(1, floor(N · 0,01))`, arithmetisches Mittel
-  der k langsamsten Frametimes, Low-FPS = `1000 / Mittelwert`. Kein einzelner Minimalwert.
-- **0,1%-Low-Methode:** identisch mit `p = 0,001`.
-- **Fenster/Ringpuffer:** `LowPercentileCalculator`, Kapazität 10 000 Frametimes (konstanter
-  Speicher; ~100 s Geschichte bei 100 FPS). 1%-Low ab 100 Samples, 0,1%-Low erst ab 1000
-  Samples – darunter ehrlich `--`. Berechnung 1× pro Sekunde (1-s-Hardware-Tick), nicht im
-  25-ms-Frame-Tick; keine LINQ-Ketten, vorallokierter Sortier-Puffer.
-- **Spielwechsel:** wechselt der gemessene `ProcessName`, werden Ringpuffer und Anzeigen
-  zurückgesetzt (alte Samples gehören zum alten Spiel). Ohne gültige Daten wird der gesamte
-  Monitoring-Zustand zurückgesetzt.
+- **FPS source:** RTSS shared memory (foreground entry preferred), displayed as a rounded
+  integer; without valid data `--`.
+- **Frame-time source:** prefer the measured `dwFrameTime` (µs → ms); only when RTSS does not
+  deliver one, the derived `1000/FPS` – marked with `≈` in the UI. Without data:
+  `not available`.
+- **1% low method** (identical to the aggregated approach of common benchmark tools): sort the
+  last N frame times in the ring buffer, `k = max(1, floor(N · 0.01))`, arithmetic mean of the
+  k slowest frame times, low FPS = `1000 / mean`. Not a single minimum value.
+- **0.1% low method:** identical with `p = 0.001`.
+- **Window/ring buffer:** `LowPercentileCalculator`, capacity 10 000 frame times (constant
+  memory; ~100 s of history at 100 FPS). 1% low from 100 samples onward, 0.1% low only from
+  1000 samples – below that honestly `--`. Calculated once per second (1-s hardware tick),
+  not in the 25-ms frame tick; no LINQ chains, pre-allocated sort buffer.
+- **Game switch:** when the measured `ProcessName` changes, ring buffer and displays are
+  reset (old samples belong to the old game). Without valid data the whole monitoring state
+  is reset.
 
-### Schreiben (FPS-Limit)
+### Writing (FPS limit)
 
-> **Wichtig (empirisch verifiziert):** RTSS liest aktive Limiter-Einstellungen aus
-> `<RTSS>\Profiles\<Prozess>.cfg`. `ProfileTemplates\` ist **nur die Vorlage** für neue,
-> in der RTSS-GUI erstellte Profile – Einträge dort haben **keinen** Einfluss auf laufende
-> Spiele. Ein früherer Build schrieb nur die Vorlage; der Benutzer sah dann "Limit=0" und
-> das gewünschte FPS-Limit griff nie.
+> **Important (empirically verified):** RTSS reads active limiter settings from
+> `<RTSS>\Profiles\<process>.cfg`. `ProfileTemplates\` is **only the template** for new
+> profiles created in the RTSS GUI – entries there have **no** effect on running games.
+> An earlier build only wrote the template; the user then saw "Limit=0" and the desired
+> FPS limit never took effect.
 
-Zwei ergänzende Wege:
+Two complementary paths:
 
-1. **LIVE (sofort wirksam, ohne UAC):** RTSSHooks64.dll — die DLL wird beim App-Start im
-   **Hintergrund** vorgeladen (die Initialisierung kann in einer gehookten Umgebung hängen
-   und darf den UI-Thread nie blockieren). Im Apply-Pfad werden die Export-Delegates der
-   geladenen DLL idempotent gebunden (kein `LoadLibrary` im UI-Thread) und die Sequenz
+1. **LIVE (immediately effective, without UAC):** RTSSHooks64.dll – the DLL is preloaded in
+   the **background** at app start (initialization can hang in a hooked environment and must
+   never block the UI thread). In the apply path, the export delegates of the loaded DLL are
+   bound idempotently (no `LoadLibrary` on the UI thread) and the sequence
    `LoadProfile` → `SetProfileProperty("FramerateLimitDenominator", 1)` →
-   `SetProfileProperty("FramerateLimit", …)` → `SaveProfile` → `UpdateProfiles` ausgeführt.
-   Rückgabewerte werden geprüft; `SaveProfile = false` (ohne Adminrechte normal, da ACL) ist
-   kein Fehler — die Persistenz übernimmt Weg 2.
+   `SetProfileProperty("FramerateLimit", …)` → `SaveProfile` → `UpdateProfiles` is executed.
+   Return values are checked; `SaveProfile = false` (normal without admin rights, ACL) is not
+   an error – persistence is handled by path 2.
 
-   > **Regression behoben (Live-Pfad war stumm):** Der Hintergrund-Preload setzte nur das
-   > Modul-Handle; ein reiner Handle-Check übersprang danach die Export-Bindung → alle
-   > Delegates blieben `null` und `SetProfileProperty` lieferte immer `false`. Der Live-Pfad
-   > bindet die Delegates jetzt sofort, sobald das Modul geladen ist (`HooksLive` wieder
-   > `true`, empirisch verifiziert).
-2. **PERSISTENZ:** `<RTSS>\Profiles\<Prozess>.cfg` — Sektion `[Framerate]`, Schlüssel
-   `Limit` (`RtssProfileWriter.SetProfileLimit`). Existierende Dateien werden per
-   Read-modify-write nur am Limit-Schlüssel geändert (OSD/Statistics/Hooking/Font bleiben
-   unangetastet); fehlende Dateien werden als minimale, vollständige Profil-Datei erzeugt
-   (inkl. `[Hooking] EnableHooking=1`). `Limit=0` deaktiviert das Limit (RTSS-Konvention).
+   > **Regression fixed (live path was silent):** The background preload only set the module
+   > handle; a bare handle check then skipped the export binding → all delegates stayed
+   > `null` and `SetProfileProperty` always returned `false`. The live path now binds the
+   > delegates as soon as the module is loaded (`HooksLive` is `true` again, verified
+   > empirically).
+2. **PERSISTENCE:** `<RTSS>\Profiles\<process>.cfg` – section `[Framerate]`, key `Limit`
+   (`RtssProfileWriter.SetProfileLimit`). Existing files are modified via read-modify-write
+   on the limit key only (OSD/Statistics/Hooking/Font remain untouched); missing files are
+   created as a minimal, complete profile file (incl. `[Hooking] EnableHooking=1`).
+   `Limit=0` disables the limit (RTSS convention).
 
-Anschließend bekommt das RTSS-Fenster (per `EnumWindows` gesucht) `WM_APP + 0x100` gepostet
-(Non-blocking via `PostMessage`), damit es die Profile neu lädt.
+Afterwards the RTSS window (found via `EnumWindows`) receives `WM_APP + 0x100` (non-blocking
+via `PostMessage`) so it reloads the profiles.
 
-> **Elevation (aktueller Stand):** Das App-Manifest ist `asInvoker` – die App startet ohne UAC.
-> Die INI-Logik liegt in `RtssProfileWriter` und wird direkt versucht. Schlägt der Schreibzugriff
-> auf `Profiles\` unter `Program Files (x86)` mit `UnauthorizedAccessException` fehl (normal,
-> da ACL-geschützt), startet `RtssService` on-demand **`FrameBouncer.ElevationHelper`**
-> (`requireAdministrator`, `Verb = runas`):
-> `ElevationHelper.exe [writeLimit|writeTemplate] <installPath> <processName> <targetFps>`
-> (ohne Operation = `writeLimit`), Exit-Code 0 = Erfolg, 2 = abgelehnte UAC/Argumente.
-> `writeLimit` schreibt das aktive `Profiles\`-Profil, `writeTemplate` nur die GUI-Vorlage
-> (Legacy). Der Helper teilt sich `RtssProfileWriter.cs` per Compile-Link
-> mit der App – keine duplizierte Logik.
-> **Kein UAC-Spam:** Markierte Auto-Apply-Prozesse (`_autoAppliedProcesses`) verhindern,
-> dass ein fehlgeschlagener/abgelehnter Schreibvorgang pro laufender Instanz wiederholt
-> wird.
+> **Elevation (current state):** The app manifest is `asInvoker` – the app starts without UAC.
+> The INI logic lives in `RtssProfileWriter` and is attempted directly. If the write access to
+> `Profiles\` under `Program Files (x86)` fails with `UnauthorizedAccessException` (normal,
+> ACL-protected), `RtssService` on-demand starts **the own EXE in the
+> `--elevated-helper` mode** (`Verb = runas`, UAC on demand):
+> `FrameBouncer.exe --elevated-helper [writeLimit|writeTemplate] <installPath> <processName> <targetFps>`
+> (no operation = `writeLimit`), exit code 0 = success, 2 = declined UAC/arguments.
+> `writeLimit` writes the active `Profiles\` profile, `writeTemplate` only the GUI template
+> (legacy). The mode shares `RtssProfileWriter` with the app – no duplicated logic.
+> **No UAC spam:** Marked auto-apply processes (`_autoAppliedProcesses`) prevent a failed or
+> declined write from being retried per running instance.
 >
-> **UAC-freier Exit-Reset (empirisch verifiziert, RTSS 7.3.5 / ACL-geschützte `Profiles\`):**
-> Die Live-API allein reicht NICHT – `SetProfileProperty(FramerateLimit, n)` wird vom
-> RTSS-Server akzeptiert (`true`), aber der Limiter eines laufenden, gehookten Spiels folgt
-> der Profil-**Datei**; auch `WM_APP+0x100` ändert daran nichts, und `SaveProfile` scheitert
-> ohne Adminrechte (ACL). Deshalb gilt: Der zuverlässige Cap/Reset läuft über die Datei.
-> Damit er ohne Dauer-UAC funktioniert, erweitert der **ElevationHelper nach dem ersten
-> erfolgreichen `writeLimit` einmalig die ACL** des `Profiles\`-Ordners um `Modify` für den
-> aktuellen Benutzer (`icacls … /grant "Benutzer:(OI)(CI)M" /T`, best effort, reversible
-> Systemänderung nur an diesem Ordner). Danach schreiben Apply **und** Exit-Reset direkt
-> (empirisch: Cap 60 → exakt 60 FPS, Reset → unlimitiert, jeweils ohne Helper/UAC).
-> Grenze: Auf Systemen, auf denen weder die ACL gesetzt wurde noch direkte Writes möglich
-> sind, fällt der Exit-Reset auf den Helper zurück (eine UAC) – er bleibt damit immer
-> korrekt. RTSS ab 7.3.7 wendet geänderte Limits laut Community-Skripts zusätzlich live an;
-> auf 7.3.5 ist das nicht der Fall.
+> **UAC-free exit reset (empirically verified, RTSS 7.3.5 / ACL-protected `Profiles\`):**
+> The live API alone is NOT enough – `SetProfileProperty(FramerateLimit, n)` is accepted by
+> the RTSS server (`true`), but the limiter of a running hooked game follows the profile
+> **file**; `WM_APP+0x100` does not change that either, and `SaveProfile` fails without
+> admin rights (ACL). Therefore: the reliable cap/reset runs through the file. So that this
+> works without permanent UAC, the **elevation helper, after the first successful
+> `writeLimit`, once extends the ACL** of the `Profiles\` folder with `Modify` for the current
+> user (`icacls … /grant "User:(OI)(CI)M" /T`, best effort, reversible system change only on
+> that folder). Afterwards Apply **and** exit reset write directly (empirically: cap 60 →
+> exactly 60 FPS, reset → unlimited, each without helper/UAC).
+> Limit: On systems where neither the ACL was set nor direct writes are possible, the exit
+> reset falls back to the helper (one UAC) – it stays correct. RTSS 7.3.7+ additionally
+> applies changed limits live according to community scripts; on 7.3.5 that is not the case.
 
-## MSI-Afterburner-Integration
+## MSI Afterburner integration
 
-- Shared Memory `MAHMSharedMemory` (+ `Local\`/`Global\`), nur lesend.
-- Header: Signatur `0x4D41484D` („MAHM“), `HeaderSize`, `EntryCount`, `EntrySize`.
+- Shared memory `MAHMSharedMemory` (+ `Local\`/`Global\`), read-only.
+- Header: signature `0x4D41484D` ("MAHM"), `HeaderSize`, `EntryCount`, `EntrySize`.
 - Entries: `Name[260]` @+0 (ASCII), `Value` (float) @+1300.
-- Genutzte Sensoren: `GPU temperature`, `CPU temperature`.
+- Sensors used: `GPU temperature`, `CPU temperature`.
 
-## Monitor-/Refreshrate-Erkennung
+## Monitor / refresh-rate detection
 
-- **Quelle:** `EnumDisplayMonitors` + `GetMonitorInfo` + `EnumDisplaySettings`
-  (`ENUM_CURRENT_SETTINGS`) – der tatsächlich aktive Windows-Displaymode, KEINE
-  EDID-/Namens-Raterei. `dmDisplayFrequency` liefert die reale Bildwiederholrate.
-- **Architektur:** `IMonitorInfoService` → `MonitorInfoService`; Datenmodell `MonitorInfo`
-  (`DisplayName`, `RefreshRateHz`, `IsAvailable`, `MonitorId`, `IsPrimary`). Fabriken
-  (Enumeration + Displaymode-Leser) sind injizierbar → Testbarkeit ohne echten Bildschirm.
-- **Zielmonitor:** Fenster des überwachten Prozesses (`MonitorFromWindow`), sonst primärer
-  Monitor, niemals ein zufälliger. Fehlt beides → `IsAvailable=false` → UI zeigt „Unbekannt“
-  (nie „0 Hz“).
-- **Aktualisierung:** beim Start, bei Wechsel des überwachten Prozesses, im 1-s-Hardware-Tick
-  mit 10-s-Cache. NIEMALS im 25-ms-Frametiming-Tick. Rein lesend – verändert weder
-  Display-Einstellungen, RTSS noch Profile.
+- **Source:** `EnumDisplayMonitors` + `GetMonitorInfo` + `EnumDisplaySettings`
+  (`ENUM_CURRENT_SETTINGS`) – the actually active Windows display mode, NOT EDID/name
+  guessing. `dmDisplayFrequency` delivers the real refresh rate.
+- **Architecture:** `IMonitorInfoService` → `MonitorInfoService`; data model `MonitorInfo`
+  (`DisplayName`, `RefreshRateHz`, `IsAvailable`, `MonitorId`, `IsPrimary`). Factories
+  (enumeration + display-mode reader) are injectable → testable without a real screen.
+- **Target monitor:** window of the watched process (`MonitorFromWindow`), otherwise the
+  primary monitor, never a random one. If both are missing → `IsAvailable=false` → UI shows
+  "Unknown" (never "0 Hz").
+- **Refresh:** on start, on change of the watched process, in the 1-s hardware tick with a
+  10-s cache. NEVER in the 25-ms frame-timing tick. Strictly read-only – changes neither
+  display settings, RTSS nor profiles.
 
-## VRR-Erkennung (rein diagnostisch, nur lesend)
+## VRR detection (purely diagnostic, read-only)
 
-- **Quelle:** VESA-EDID-„Display Range Limits“-Deskriptor (Tag `0xFD`) im 128-Byte-Basisblock.
-  EDID-Lesen: `EnumDisplayDevicesW` (Geräte-ID) → SetupAPI (`GUID_DEVCLASS_MONITOR`,
-  Modell-Token-Abgleich) → Registry-Wert `EDID` unter
-  `HKLM\...\Enum\DISPLAY\<instance>\Device Parameters`. Parsing nach VESA-Standard
-  (DTD-Slots 54/72/90/108, Header-Signatur `00 FF FF FF FF FF FF 00` + Prüfsumme) in
+- **Source:** VESA EDID "Display Range Limits" descriptor (tag `0xFD`) in the 128-byte base
+  block. EDID reading: `EnumDisplayDevicesW` (device ID) → SetupAPI (`GUID_DEVCLASS_MONITOR`,
+  model-token match) → registry value `EDID` under
+  `HKLM\...\Enum\DISPLAY\<instance>\Device Parameters`. Parsing per VESA standard
+  (DTD slots 54/72/90/108, header signature `00 FF FF FF FF FF FF 00` + checksum) in
   `EdidRangeLimitsParser`.
-- **Architektur:** `IVrrDetectionService` → `VrrDetectionService`; erweitert `MonitorInfo` um
-  `Support`/`State`/`Technology` (Enums, keine freien Strings). EDID-Leser und Support-
-  Bewertung sind injizierbare Fabriken → testbar ohne echte Hardware (Tests nutzen
-  synthetische EDID-Blöcke).
-- **Support-Bewertung (dokumentierte, konservative Heuristik):** `Supported` nur bei
-  min ≤ 48 Hz, max ≥ 90 Hz und Spanne ≥ 40 Hz (typische FreeSync-/G-SYNC-Bereiche wie
-  40–144, 48–144, 30–144). `NotSupported` nur bei schmaler, hoher Spanne (min ≥ 50,
-  max−min < 25, z. B. 56–60). Alles andere – inkl. kaputter/minimaler Angaben – → `Unknown`.
-  Es wird nie ein „Supported“ erfunden.
-- **Aktiver Status & Technologie — ehrliche Grenze:** Windows stellt KEINE öffentlich
-  dokumentierte API für den aktiven VRR-Zustand oder die Technologie (G-SYNC/FreeSync/
-  Adaptive Sync) eines Monitors bereit. Beide bleiben deshalb ehrlich `Unknown`; es wird
-  niemals aus GPU-Hersteller oder Monitorname geschlossen. „VRR: Unbekannt“ ist ein gültiges
-  Ergebnis (Spec Punkt 13), kein Fehler.
-- **Zielmonitor:** identisch zur Monitor-Erkennung (Fenster des überwachten Prozesses, sonst
-  primärer Monitor) – die bestehende Zuordnung wird wiederverwendet, nicht neu implementiert.
-- **Aktualisierung:** am selben Refresh-Pfad wie die Monitor-Erkennung (Start, Prozesswechsel,
-  1-s-Hardware-Tick), zusätzlich pro Monitor gecacht (10 s). NIEMALS im 25-ms-Tick.
-- **Rein diagnostisch:** kein RTSS-, Profil-, Display- oder Treiber-Schreibvorgang.
-- **Bekannte Grenze (auf dem Testsystem belegt):** Der Monitor („A32 V2“) deklariert einen
-  intern inkonsistenten Range-Limits-Deskriptor (min 0 Hz / max 48 Hz bei 120-Hz-Betrieb,
-  min. horizontale Rate > max. horizontale Rate) → die App zeigt ehrlich „VRR Unbekannt“
-  statt eines geratenen Wertes. Das ist gewolltes Verhalten.
+- **Architecture:** `IVrrDetectionService` → `VrrDetectionService`; extends `MonitorInfo` with
+  `Support`/`State`/`Technology` (enums, no free strings). EDID reader and support evaluation
+  are injectable factories → testable without real hardware (tests use synthetic EDID blocks).
+- **Support evaluation (documented, conservative heuristic):** `Supported` only when
+  min ≤ 48 Hz, max ≥ 90 Hz and range ≥ 40 Hz (typical FreeSync/G-SYNC ranges like
+  40–144, 48–144, 30–144). `NotSupported` only for a narrow, high range (min ≥ 50,
+  max−min < 25, e.g. 56–60). Everything else – incl. broken/minimal data – → `Unknown`.
+  "Supported" is never invented.
+- **Active status & technology – honest limit:** Windows provides NO publicly documented API
+  for the active VRR state or the technology (G-SYNC/FreeSync/Adaptive Sync) of a monitor.
+  Both therefore stay honestly `Unknown`; it is never inferred from GPU vendor or monitor
+  name. "VRR: Unknown" is a valid result, not an error.
+- **Target monitor:** identical to monitor detection (window of the watched process, otherwise
+  primary monitor) – the existing mapping is reused, not reimplemented.
+- **Refresh:** on the same refresh path as monitor detection (start, process change, 1-s
+  hardware tick), additionally cached per monitor (10 s). NEVER in the 25-ms tick.
+- **Strictly diagnostic:** no RTSS, profile, display or driver write.
+- **Known limit (proven on the test system):** The monitor ("A32 V2") declares an internally
+  inconsistent range-limits descriptor (min 0 Hz / max 48 Hz at 120 Hz operation, min.
+  horizontal rate > max. horizontal rate) → the app honestly shows "VRR Unknown" instead of a
+  guessed value. This is intended behavior.
 
-## Smart-Cap (rein diagnostische Empfehlung)
+## Smart-Cap (purely diagnostic recommendation)
 
-- **Formel (dokumentiert):** `RecommendedCap = RefreshRate − Headroom(RefreshRate)` mit
-  `Headroom = 3` für RefreshRate ≤ 200 Hz und `Headroom = 4` für &gt; 200 Hz. Begründung:
-  3 FPS Reserve halten den Cap sicher innerhalb des variablen VRR-Bereichs (Standard für
-  G-SYNC/FreeSync-Engagement: 117/141/162/177 FPS auf 120/144/165/180 Hz); oberhalb von
-  200 Hz ist die Framezeit pro Frame kleiner als 5 ms, daher +1 Frame Reserve (236 auf
+- **Formula (documented):** `RecommendedCap = RefreshRate − Headroom(RefreshRate)` with
+  `Headroom = 3` for RefreshRate ≤ 200 Hz and `Headroom = 4` for > 200 Hz. Rationale:
+  3 FPS of headroom keep the cap safely inside the variable VRR range (standard for
+  G-SYNC/FreeSync engagement: 117/141/162/177 FPS on 120/144/165/180 Hz); above
+  200 Hz the frame time per frame is smaller than 5 ms, hence +1 frame of headroom (236 on
   240 Hz).
-- **Reine Funktion:** `SmartCapCalculator.Calculate(refreshRate, support, state)` →
-  `SmartCapResult(HasRecommendation, RecommendedFps, Reason)` — keine Seiteneffekte,
-  vollständig außerhalb von XAML/ViewModel, per Unit-Test überprüfbar (Spec Punkte 3/4).
-- **VRR-Berücksichtigung (Spec Punkt 5):**
-  - VRR **aktiv** → Vorschlag; Grund nennt den aktiven VRR.
-  - VRR **unterstützt, Status unbekannt** → vorsichtiger Vorschlag; Grund nennt
-    ausdrücklich „VRR-Status unbekannt“, niemals „sicher“.
-  - VRR **inaktiv** → KEIN Vorschlag (ein Cap unterhalb der Bildwiederholrate bringt ohne
-    aktives VRR keinen Nutzen).
-  - VRR **nicht unterstützt** → KEIN Vorschlag (Cap ohne VRR sinnlos).
-  - VRR **nicht verfügbar** oder **Refresh unbekannt** → KEIN Vorschlag (Punkt 5.5).
-- **Übernahme (Punkt 6):** Der UI-Button „Übernehmen“ setzt AUSSCHLIESSLICH `TargetFps` —
-  KEIN RTSS-Write, keine Profiländerung. Erst der bestehende Apply-Button schreibt RTSS und
-  persistiert das Profil (gleicher, unveränderter Write-Pfad).
-- **Aktualisierung (Punkt 9):** im VRR-/Monitor-Refresh-Pfad (Start, Prozess-/Monitorwechsel,
-  10-s-Cache). NIEMALS im 25-ms-Frametiming-Tick.
-- **Rein diagnostisch:** niemals automatische Änderung von RTSS, TargetFps, SelectedProcess
-  oder SavedProfiles.
+- **Pure function:** `SmartCapCalculator.Calculate(refreshRate, support, state)` →
+  `SmartCapResult(HasRecommendation, RecommendedFps, Reason)` – no side effects, fully
+  outside XAML/ViewModel, unit-testable.
+- **VRR consideration:**
+  - VRR **active** → suggestion; reason names the active VRR.
+  - VRR **supported, state unknown** → cautious suggestion; the reason explicitly says
+    "VRR status unknown", never "certain".
+  - VRR **inactive** → NO suggestion (a cap below the refresh rate is useless without active
+    VRR).
+  - VRR **not supported** → NO suggestion (cap without VRR pointless).
+  - VRR **not available** or **refresh unknown** → NO suggestion.
+- **Adoption:** The UI "Apply recommendation" button sets ONLY `TargetFps` – NO RTSS write,
+  no profile change. Only the existing Apply button writes RTSS and persists the profile
+  (same, unchanged write path).
+- **Refresh:** on the VRR/monitor refresh path (start, process/monitor change, 10-s cache).
+  NEVER in the 25-ms frame-timing tick.
+- **Strictly diagnostic:** never automatically changes RTSS, TargetFps, SelectedProcess or
+  SavedProfiles.
 
-## Prozess- & Fenstererkennung
+## Process & window detection
 
-- `ProcessService`: alle Prozesse mit sichtbarem Hauptfenster, ohne bekannte Systemprozesse,
-  dedupliziert als `<Prozessname>.exe`.
-- `WindowPickerService`: After the user clicks (`WH_MOUSE_LL`-Hook im MainWindow wird
-  `WindowFromPoint` → `GA_ROOTOWNER` → PID → Prozessname `.exe` + Fenstertitel aufgelöst).
+- `ProcessService`: all processes with a visible main window, without known system processes,
+  deduplicated as `<processName>.exe`.
+- `WindowPickerService`: after the user clicks (`WH_MOUSE_LL` hook in MainWindow,
+  `WindowFromPoint` → `GA_ROOTOWNER` → PID → process name `.exe` + window title are resolved).
 
-## FPS-Limiter-Konflikterkennung (diagnostisch, nur lesend)
+## FPS limiter conflict detection (diagnostic, read-only)
 
-- **Architektur:** `ILimiterConflictService` → `LimiterDetectionService` (I/O, gecacht,
-  im 1-s-Tick auf 10 s gedrosselt) → reiner `ConflictAnalyzer` (testbar, kein I/O).
-  Datenmodell: `LimiterState` (Source/Status/LimitFps) + `LimiterConflictResult`
+- **Architecture:** `ILimiterConflictService` → `LimiterDetectionService` (I/O, cached,
+  throttled to 10 s in the 1-s tick) → pure `ConflictAnalyzer` (testable, no I/O).
+  Data model: `LimiterState` (Source/Status/LimitFps) + `LimiterConflictResult`
   (HasConflict/EffectiveLimitHint/Message).
-- **Erkannte Quellen und deren Verlässlichkeit:**
-  - **RTSS** – aus der bestehenden Integration (Verfügbarkeit + aktives Profil-Limit des
-    gewählten Prozesses). Status kann Off/On/Unbekannt sein – kein zweiter RTSS-Zugriffspfad.
-  - **NVIDIA/AMD** – der GPU-**Hersteller** wird zuverlässig via Registry erkannt
-    (`DriverDesc`, einmalig gecacht). Der Limit-Wert wird Per-Game über
-    `IDriverLimitProvider` angefragt (nur lesend, nie werfend):
-    - `NvidiaDriverLimitProvider` prüft die **verifizierten** NVAPI-Einstiegspunkte
-      (`nvapi64.dll` + Export `nvapi_QueryInterface`; `NvAPI_Initialize` = `0x0150E828`,
-      `NvAPI_DRS_GetCurrentGlobalProfile` = `0x617BFF9F`, beide community-verifiziert).
-      Die restliche DRS-Lese-Kette – Funktions-IDs für `NvAPI_DRS_GetSettings`/
-      `GetSetting`, die Setting-ID `NVDRS_FRAME_RATE_LIMITER` und die Struct-Layouts
-      `NVDRS_SETTINGS`/`NVDRS_SETTING` – ist nicht aus dem öffentlich verifizierbaren
-      SDK belegt → das Limit bleibt ehrlich **Unbekannt** (Spec: „NICHT raten“).
-    - `AmdDriverLimitProvider` liefert ehrlich **Unbekannt**: ADLX dokumentiert kein
-      FRTC-Lesen, Registry-UMD-Werte wären verbotene Heuristik.
-  - **Per-Game & Aktualisierung:** Die aktuell überwachte EXE wird an den Provider
-    übergeben; ein Wechsel des Spiels invalidiert den 10-s-Cache sofort (kein
-    veralteter Wert für ein anderes Spiel). Ungültige Provider-Daten (0/negativ) werden
-    zu **Unbekannt** säubert – „kein Wert gefunden“ ≠ „0 FPS“ ≠ „Aus“.
-  - **Kein 25-ms-Zugriff:** Treiber-/V-Sync-Abfragen laufen ausschließlich im 1-s-Hardware-Tick
-    (10-s-Cache), nie im 25-ms-Frametiming-Tick.
-  - **In-Game-Limiter – Detector-Registry** (`IInGameLimiterDetector`): Es gibt KEINE
-    universelle In-Game-Limiter-API; die Erkennung läuft über erweiterbare, read-only
-    Detectoren (`CanHandle(GameContext)` / `Detect(GameContext)`, nie werfend) mit
-    `GameContext` (Prozessname/PID/Exe-Pfad/Install-Verzeichnis, geliefert vom
-    `GameContextProvider` via `Process.GetProcessesByName`). Ohne passenden Detector
-    oder Kontext → ehrlich **Unbekannt**, **keine FPS-Heuristik** (FPS/Low/Frametime/
-    Refresh/RTSS/NVIDIA/AMD/V-Sync sind NIE Beweis für ein Game-Limit).
-    - **Proof-of-Concept: `SourceEngineFpsMaxDetector`** – Source-1-Spiele (Valve).
-      Signatur: `GameInfo.txt` im Install-Verzeichnis. Quelle: `fps_max` in
-      `cfg\autoexec.cfg` / `cfg\config.cfg` (autoexec hat Vorrang).
-      `fps_max 0` → **Aus** (ausdrücklich unbegrenzt), `fps_max n` (n>0) → **Aktiv n FPS**,
-      ungültig/negativ/kein Schlüssel → **Unbekannt**, kein `cfg\` → **Nicht verfügbar**.
-      Source 2 (`gameinfo.gi`) und alle anderen Spiele → **Unbekannt**.
-  - **V-Sync – quellentreu je Ebene** (`LimiterSource.NvidiaVSync` / `AmdVSync` /
-    `InGameVSync`; eigener Status `LimiterStatus.Unavailable` für „Quelle nicht verfügbar“):
-    - `NvidiaVSyncProvider` prüft die **verifizierten** NVAPI-Einstiegspunkte
-      (`nvapi64.dll` + `nvapi_QueryInterface`). Fehlt die DLL → **Nicht verfügbar**;
-      ist sie geladen, aber die DRS-Setting-ID `NVDRS_VSYNCMODE` samt Lese-Kette nicht aus
-      dem öffentlich verifizierbaren SDK belegt → ehrlich **Unbekannt**.
-    - `AmdVSyncProvider` liefert ehrlich **Unbekannt**: ADLX dokumentiert kein
-      V-Sync-Lesen, Registry-Werte wären verbotene Heuristik.
-    - **In-Game-V-Sync** ohne verifizierbare universelle Konfigurationsquelle → **Unbekannt**.
-      Nur der Provider des erkannten GPU-Herstellers wird abgefragt; die Ebenen werden
-      getrennt ausgewiesen („NVIDIA V-Sync: aktiv“ ≠ „globaler V-Sync: aktiv“).
-    - V-Sync trägt **keinen FPS-Wert** – versehentlich gelieferte Limits werden entfernt;
-      fehlende Info wird NIE als "Aus" interpretiert.
-- **Konfliktregel:** ≥ 2 FPS-Limiter *zuverlässig aktiv* → Warnung (vorsichtig formuliert:
-  "Das tatsächlich wirksame Limit kann abweichen") + niedrigstes bekanntes Limit als
-  Diagnosehinweis. **V-Sync ist auf keiner Ebene ein FPS-Limiter**: weder V-Sync allein
-  noch RTSS+V-Sync erzeugen einen Konflikt (dafür braucht es zwei sicher aktive FPS-Limits).
-  VRR+V-Sync gilt als normale Konfiguration (VRR wird gar nicht als Limiter bewertet).
-- **Garantien:** streng nur-lesend (keine Schreibvorgänge an RTSS, Treiber, Windows,
-  Spielkonfigurationen), kein automatisches Anwenden des niedrigsten Limits,
-  keine Profiländerung, kein Crash bei RTSS-Ausfall.
-- **UI:** kompakte Konflikt-Markierung (⚠) in der Statuszeile; Tooltip zeigt alle
-  Quellen-Zustände getrennt (z. B. "RTSS: 120 FPS | In-Game: Unbekannt | NVIDIA: Unbekannt |
-  In-Game V-Sync: Unbekannt | NVIDIA V-Sync: Unbekannt"); `Unavailable` erscheint als
-  "Nicht verfügbar".
-- **Bekannte Grenzen:** Ohne die aus dem SDK verifizierbaren DRS-Funktions-/Setting-IDs
-  und Struct-Layouts bleiben aktive NVIDIA-/AMD-Treiber-Limiter **und** Treiber-V-Sync-
-  Zustände unsichtbar (Status ehrlich **Unbekannt**/„Nicht verfügbar“, kein erfundener
-  Konflikt-Alarm). Der NVAPI-Probe (LoadLibrary `nvapi64.dll` +
-  `nvapi_QueryInterface`-Auflösung) ist rein lesend – keine DLL-Injection, keine Aufrufe
-  mit nicht verifizierten IDs. In-Game-Erkennung ist nur für Spiele möglich, für die ein
-  Detector mit verifizierter Quelle existiert (aktuell: Source-1-`fps_max`); alle anderen
-  Spiele, Source-2-Spiele und Spiele ohne auffindbaren `fps_max`-Schlüssel bleiben ehrlich
-  **Unbekannt**. Der Kontextzugriff (`MainModule.FileName`) kann bei fremder Elevation
-  scheitern → dann ebenfalls **Unbekannt**. In-Game-V-Sync wird grundsätzlich nicht erkannt;
-  es gibt keine universelle Windows-/Treiber-API für den tatsächlichen V-Sync-Zustand eines
-  Spiels. Die Erkennung ist konservativ: Sie meldet nur belegbare Konflikte und erfindet keine.
+- **Detected sources and their reliability:**
+  - **RTSS** – from the existing integration (availability + active profile limit of the
+    selected process). Status can be Off/On/Unknown – no second RTSS access path.
+  - **NVIDIA/AMD** – the GPU **vendor** is reliably detected via registry (`DriverDesc`,
+    cached once). The limit value is queried per game via `IDriverLimitProvider` (read-only,
+    never throwing):
+    - `NvidiaDriverLimitProvider` checks the **verified** NVAPI entry points
+      (`nvapi64.dll` + export `nvapi_QueryInterface`; `NvAPI_Initialize` = `0x0150E828`,
+      `NvAPI_DRS_GetCurrentGlobalProfile` = `0x617BFF9F`, both community-verified).
+      The rest of the DRS read chain – function IDs for `NvAPI_DRS_GetSettings`/
+      `GetSetting`, the setting ID `NVDRS_FRAME_RATE_LIMITER` and the struct layouts
+      `NVDRS_SETTINGS`/`NVDRS_SETTING` – is not proven from the publicly verifiable
+      SDK → the limit stays honestly **Unknown** ("do not guess").
+    - `AmdDriverLimitProvider` honestly returns **Unknown**: ADLX documents no FRTC
+      reading, registry UMD values would be forbidden heuristic.
+  - **Per game & refresh:** The currently watched EXE is passed to the provider; switching
+    games invalidates the 10-s cache immediately (no stale value for another game). Invalid
+    provider data (0/negative) is cleaned to **Unknown** – "no value found" ≠ "0 FPS" ≠ "Off".
+  - **No 25-ms access:** Driver/V-Sync queries run exclusively in the 1-s hardware tick
+    (10-s cache), never in the 25-ms frame-timing tick.
+  - **In-game limiter – detector registry** (`IInGameLimiterDetector`): There is NO
+    universal in-game-limiter API; detection runs via extensible, read-only detectors
+    (`CanHandle(GameContext)` / `Detect(GameContext)`, never throwing) with `GameContext`
+    (process name/PID/EXE path/install directory, supplied by the `GameContextProvider` via
+    `Process.GetProcessesByName`). Without a matching detector or context → honestly
+    **Unknown**, **no FPS heuristic** (FPS/lows/frame time/refresh/RTSS/NVIDIA/AMD/V-Sync are
+    NEVER proof of a game limit).
+    - **Proof of concept: `SourceEngineFpsMaxDetector`** – Source-1 games (Valve).
+      Signature: `GameInfo.txt` in the install directory. Source: `fps_max` in
+      `cfg\autoexec.cfg` / `cfg\config.cfg` (autoexec takes precedence).
+      `fps_max 0` → **Off** (explicitly unlimited), `fps_max n` (n>0) → **Active n FPS**,
+      invalid/negative/no key → **Unknown**, no `cfg\` → **Not available**.
+      Source 2 (`gameinfo.gi`) and all other games → **Unknown**.
+  - **V-Sync – source-true per level** (`LimiterSource.NvidiaVSync` / `AmdVSync` /
+    `InGameVSync`; own status `LimiterStatus.Unavailable` for "source not available"):
+    - `NvidiaVSyncProvider` checks the **verified** NVAPI entry points (`nvapi64.dll` +
+      `nvapi_QueryInterface`). If the DLL is missing → **Not available**; if it is loaded but
+      the DRS setting ID `NVDRS_VSYNCMODE` including the read chain is not proven from the
+      publicly verifiable SDK → honestly **Unknown**.
+    - `AmdVSyncProvider` honestly returns **Unknown**: ADLX documents no V-Sync reading,
+      registry values would be forbidden heuristic.
+    - **In-game V-Sync** without a verifiable universal configuration source → **Unknown**.
+      Only the provider of the detected GPU vendor is queried; the levels are reported
+      separately ("NVIDIA V-Sync: active" ≠ "global V-Sync: active").
+    - V-Sync carries **no FPS value** – accidentally delivered limits are removed; missing
+      info is NEVER interpreted as "Off".
+- **Conflict rule:** ≥ 2 FPS limiters *reliably active* → warning (cautiously worded:
+  "The effective limit may differ") + lowest known limit as a diagnostic hint.
+  **V-Sync is not an FPS limiter at any level**: neither V-Sync alone nor RTSS+V-Sync
+  produce a conflict (that requires two reliably active FPS limits). VRR+V-Sync counts as a
+  normal configuration (VRR is not evaluated as a limiter at all).
+- **Guarantees:** strictly read-only (no writes to RTSS, drivers, Windows, game
+  configurations), no automatic application of the lowest limit, no profile change, no crash
+  on RTSS failure.
+- **UI:** compact conflict marker (⚠) in the status bar; the tooltip shows all source states
+  separately (e.g. "RTSS: 120 FPS | In-Game: Unknown | NVIDIA: Unknown | In-Game V-Sync:
+  Unknown | NVIDIA V-Sync: Unknown"); `Unavailable` appears as "Not available".
+- **Known limits:** Without the DRS function/setting IDs and struct layouts verifiable from
+  the SDK, active NVIDIA/AMD driver limiters **and** driver V-Sync states remain invisible
+  (status honestly **Unknown**/"Not available", no invented conflict alarm). The NVAPI probe
+  (LoadLibrary `nvapi64.dll` + `nvapi_QueryInterface` resolution) is strictly read-only – no
+  DLL injection, no calls with unverified IDs. In-game detection is only possible for games
+  for which a detector with a verified source exists (currently Source-1 `fps_max`); all
+  other games, Source-2 games and games without a findable `fps_max` key stay honestly
+  **Unknown**. Context access (`MainModule.FileName`) can fail under foreign elevation → then
+  also **Unknown**. In-game V-Sync is generally not detected; there is no universal
+  Windows/driver API for the actual V-Sync state of a game. Detection is conservative: it
+  only reports provable conflicts and invents none.
 
-## Profil-Backup & Restore
+## Profile backup & restore
 
-- **Was gesichert wird:** ausschließlich die von FrameBouncer verwalteten `SavedProfiles`
-  (ProcessName, TargetFps, Enabled, Zeitstempel). Erkannte Prozesse landen **nie** im Backup
-  (Detection ≠ Saved), fremde RTSS-Konfiguration wird nicht behauptet, da sie nicht gelesen wird.
-- **Format:** JSON, `formatVersion` 1, camelCase-Schlüssel (`formatVersion`, `createdAt`,
-  `appVersion`, `profiles[]` mit `processName`/`targetFps`/`enabled`/`createdUtc`/`updatedUtc`).
-  Ablage: `%APPDATA%\FrameBouncer\Backups\FrameBouncer-Profiles-<Zeitstempel>.json` oder ein
-  beliebiger Benutzerpfad via SaveFileDialog. Dateinamen sind pro Aufruf eindeutig
-  (Sekundenstempel + ` (2)`-Suffix bei Kollision).
-- **Backup nur explizit:** App-Start, Prozess-Erkennung, Auswahl, Auto-Apply und normales Apply
-  erzeugen **niemals** Backup-Dateien – nur der "⭳ Backup"-Button tut das.
-- **Architektur:** `IProfileBackupService`/`ProfileBackupService` (Dateispeicherung + Restore),
-  `BackupValidator` (reine Validierung: JSON-Syntax, unterstützte `formatVersion`, gültiger
-  EXE-Name ohne Pfad-/Dateisystem-Zeichen, FPS 1–1000, keine doppelten Profile),
-  `IBackupFilePicker`/`BackupFilePicker` (Dialoge), `AtomicFile` (Temp-Datei + `File.Replace`).
-  Keine Backup-Logik in Code-Behind.
-- **Restore-Ablauf:** Datei wählen → validieren (ungültige Dateien werden mit deutscher
-  Fehlermeldung abgelehnt: "ungültiges JSON-Format", "Nicht unterstützte Backup-Version: N",
-  "ungültiger FPS-Wert", "doppeltes Profil", …) → Bestätigungsdialog mit Zusammenfassung →
-  **Safety-Backup** der aktuellen Profile → Übernahme → `settings.json` aktualisieren →
-  UI aktualisieren (Prozessliste frisch, Auswahl bleibt erhalten). Schlägt der Restore fehl,
-  bleiben die aktuellen Profile unverändert (Safety-Backup existiert zusätzlich).
-- **Kein RTSS-Write durch Restore:** Es wird nur Persistenz + UI aktualisiert. Laufende Spiele
-  werden nicht umkonfiguriert; die RTSS-Anwendung erfolgt weiterhin ausschließlich über die
-  bestehende Apply-/Auto-Apply-Logik beim passenden Spielstart.
-- **Atomisches Speichern:** Sowohl Backup-Dateien als auch `settings.json` werden über
-  `AtomicFile` geschrieben (vollständige Temp-Datei im selben Verzeichnis, dann Replace).
-  Ein Abbruch während des Schreibens hinterlässt niemals ein halbes JSON.
-- **Bekannte Grenzen:** RTSS-eigene Profile-Konfiguration (RTSS-Installationsordner) ist nicht
-  Teil des Backups – FrameBouncer sichert nur seine eigene Persistenz. Backups einer zukünftigen
-  `formatVersion` > 1 werden abgelehnt (Version wird in der Meldung genannt), nicht stillschweigend
-  geladen.
+- **What is backed up:** exclusively the FrameBouncer-managed `SavedProfiles`
+  (ProcessName, TargetFps, Enabled, timestamps). Detected processes **never** end up in the
+  backup (Detection ≠ Saved); foreign RTSS configuration is not claimed since it is not read.
+- **Format:** JSON, `formatVersion` 1, camelCase keys (`formatVersion`, `createdAt`,
+  `appVersion`, `profiles[]` with `processName`/`targetFps`/`enabled`/`createdUtc`/`updatedUtc`).
+  Location: `Documents\FrameBouncer\Backups\FrameBouncer-Profiles-<timestamp>.json` or any
+  user path via SaveFileDialog. File names are unique per call (second timestamp + ` (2)`
+  suffix on collision).
+- **Backup only explicit:** app start, process detection, selection, auto-apply and normal
+  apply **never** create backup files – only the "⭳ Backup" button does.
+- **Architecture:** `IProfileBackupService`/`ProfileBackupService` (file storage + restore),
+  `BackupValidator` (pure validation: JSON syntax, supported `formatVersion`, valid EXE name
+  without path/filesystem characters, FPS 1–1000, no duplicate profiles),
+  `IBackupFilePicker`/`BackupFilePicker` (dialogs), `AtomicFile` (temp file + `File.Replace`).
+  No backup logic in code-behind.
+- **Restore flow:** pick file → validate (invalid files are rejected with an error message:
+  "invalid JSON format", "Unsupported backup version: N", "invalid FPS value", "duplicate
+  profile", …) → confirmation dialog with summary → **safety backup** of the current profiles
+  → adopt → update `settings.json` → refresh UI (process list fresh, selection preserved).
+  If the restore fails, the current profiles remain unchanged (safety backup additionally
+  exists).
+- **No RTSS write by restore:** Only persistence + UI are updated. Running games are not
+  reconfigured; the RTSS application continues exclusively via the existing
+  apply/auto-apply logic at the appropriate game start.
+- **Atomic saving:** Both backup files and `settings.json` are written via `AtomicFile`
+  (complete temp file in the same directory, then replace). An abort during writing never
+  leaves a half-written JSON.
+- **Known limits:** RTSS's own profile configuration (RTSS install folder) is not part of the
+  backup – FrameBouncer only backs up its own persistence. Backups of a future
+  `formatVersion` > 1 are rejected (the version is named in the message), not silently loaded.
 
-## Autostart & Mitstarten von Tools
+## Autostart & starting tools alongside
 
-- **App-Autostart:** `RegistryAutostartService` verwaltet `HKCU\Software\Microsoft\Windows\
-  CurrentVersion\Run` → Wert `FrameBouncer` = Pfad der aktuellen EXE. Kein Admin nötig.
-- **RTSS/Afterburner mitstarten:** Opt-in (`StartRtssWithApp` / `StartAfterburnerWithApp` in den
-  Einstellungen). Beim Start wird geprüft, ob der Prozess bereits läuft; falls nicht, wird er
-  per `Process.Start` (UseShellExecute, **ohne** `Verb = runas`) im Hintergrund gestartet –
-  kein UI-Block und keine UAC-Aufforderung. Findet sich die EXE am Standardpfad nicht, passiert
-  nichts (nur Debug-Log).
+- **App autostart:** `RegistryAutostartService` manages `HKCU\Software\Microsoft\Windows\
+  CurrentVersion\Run` → value `FrameBouncer` = path of the current EXE. No admin needed.
+- **Starting RTSS/Afterburner:** opt-in (`StartRtssWithApp` / `StartAfterburnerWithApp` in
+  settings). At startup it is checked whether the process already runs; if not, it is started
+  in the background via `Process.Start` (UseShellExecute, **without** `Verb = runas`) – no UI
+  blocking and no UAC prompt. If the EXE is not found at the standard path, nothing happens
+  (only debug log).
 
-## Spielprofile & Auto-Apply
+## Game profiles & auto-apply
 
-- `GameProfile` (Models): `ProcessName` (eindeutiger Schlüssel, mit `.exe`), `TargetFps`,
-  `IsEnabled`, `CreatedUtc`, `UpdatedUtc`. Persistiert in `AppSettings.SavedProfiles`.
-- **Manuelles Apply** (`ApplyFpsLimit`): RTSS-Limit auf `SelectedProcess` setzen +
-  `UpsertProfile(SelectedProcess, TargetFps)` (bestehendes Profil wird aktualisiert, Apply
-  aktiviert es). Die Erkennungsliste bleibt davon unberührt.
-- **Auto-Apply** (`OnProcessRefreshTick` → `AutoApplyNewProcesses`, alle 3 s): für jeden
-  neu erkannten sichtbaren Prozess prüfen, ob ein **aktiviertes** Profil existiert →
-  ja: `SetFpsLimitViaRtss(exe, profile.TargetFps)`, nein: nichts tun. Nichts wird dabei
-  gespeichert. Pro EXE nur ein Write pro laufender Instanz (`_autoAppliedProcesses`, reiner
-  Runtime-State, wird nie persistiert); EXEs, die nicht mehr laufen, werden wieder
-  vergessen, damit ein späterer Spielstart erneut appliziert. Fehlgeschlagene Versuche
-  werden für dieselbe Instanz ebenfalls nicht wiederholt (kein UAC-Spam); der Status
-  ("Auto-Apply: …" / "Auto-Apply fehlgeschlagen: …") bleibt sichtbar, bis der nächste
-  Auto-Apply sie überschreibt.
-- **Startup-Re-Apply** (`ApplyEnabledProfilesForRunningProcesses`): nach App-Neustart werden
-  laufende Spiele mit aktivem Profil sofort begrenzt.
-- **Exit-Reset** (`ResetFpsLimit`, beim echten Beenden über `CloseApp`/Fenster-`Closing`):
-  ALLE in dieser Session angewendeten Limits werden auf 0 zurückgesetzt – manuelles Apply UND
-  Auto-Apply, unabhängig vom Frame-Timer (der bei Auto-Apply nicht läuft). Grund: RTSS erzwingt
-  das persistierte `Profiles\<exe>.cfg` auch ohne FrameBouncer weiter; nach dem Schließen sollen
-  Spiele wieder unlimitiert laufen. Tracking nur im Runtime-State `_limitsAppliedThisSession`
-  (nie persistiert); jeder Reset genau einmal je EXE, Fehler einzelner EXEs blockieren das
-  Beenden nicht. Der Update-Ablauf (`RequestForceExit`) überspringt den Reset bewusst, weil die
-  neue App-Instanz die Profile nach dem Neustart wieder anwendet. Dank der einmaligen
-  ACL-Erweiterung (siehe „Schreiben (FPS-Limit)“) läuft der Reset nach dem ersten Apply ohne
-  UAC direkt über die Datei – live verifiziert (Cap 60 → Reset → Spiel wieder unlimitiert).
-- **Legacy-Migration** (`LoadProfiles`): alte `SavedProcesses`-Einträge (nur EXE-Namen ohne
-  FPS) werden als **deaktivierte** Profile übernommen – kein ungewolltes Limitieren;
-  ein Apply reaktiviert sie.
+- `GameProfile` (Models): `ProcessName` (unique key, with `.exe`), `TargetFps`, `IsEnabled`,
+  `CreatedUtc`, `UpdatedUtc`. Persisted in `AppSettings.SavedProfiles`.
+- **Manual apply** (`ApplyFpsLimit`): set RTSS limit on `SelectedProcess` +
+  `UpsertProfile(SelectedProcess, TargetFps)` (an existing profile is updated, apply
+  activates it). The detection list remains unaffected.
+- **Auto-apply** (`OnProcessRefreshTick` → `AutoApplyNewProcesses`, every 3 s): for every
+  newly detected visible process check whether an **enabled** profile exists →
+  yes: `SetFpsLimitViaRtss(exe, profile.TargetFps)`, no: do nothing. Nothing is saved in the
+  process. One write per EXE per running instance (`_autoAppliedProcesses`, pure runtime
+  state, never persisted); EXEs that are no longer running are forgotten again so a later
+  game start applies again. Failed attempts are also not repeated for the same instance (no
+  UAC spam); the status ("Auto-Apply: …" / "Auto-Apply failed: …") stays visible until the
+  next auto-apply overwrites it.
+- **Startup re-apply** (`ApplyEnabledProfilesForRunningProcesses`): after an app restart,
+  running games with an active profile are limited immediately.
+- **Exit reset** (`ResetFpsLimit`, on real exit via `CloseApp`/window `Closing`):
+  ALL limits applied in this session are reset to 0 – manual apply AND auto-apply,
+  independent of the frame timer (which does not run during auto-apply). Reason: RTSS
+  continues to enforce the persisted `Profiles\<exe>.cfg` even without FrameBouncer; after
+  closing, games should run unlimited again. Tracking only in runtime state
+  `_limitsAppliedThisSession` (never persisted); each reset exactly once per EXE, errors of
+  individual EXEs do not block exit. The update flow (`RequestForceExit`) deliberately skips
+  the reset because the new app instance re-applies the profiles after restart. Thanks to the
+  one-time ACL extension (see "Writing (FPS limit)") the reset runs after the first apply
+  without UAC directly via the file – live-verified (cap 60 → reset → game unlimited again).
+- **Legacy migration** (`LoadProfiles`): old `SavedProcesses` entries (EXE names only,
+  without FPS) are adopted as **disabled** profiles – no unwanted limiting; an apply
+  reactivates them.
 
-## Einstellungen
+## Settings
 
-- Datei: `%APPDATA%\FrameBouncer\settings.json` (Migration von der alten Position neben der EXE
-  erfolgt einmalig beim Laden).
-- Persistiert werden: `TargetFps`, `SelectedProcess`, `IsTopmost`, `IsAutostartEnabled`,
-  `StartRtssWithApp`, `StartAfterburnerWithApp`, `SavedProfiles` (neu; `SavedProcesses` bleibt
-  nur als Legacy-Feld für die Migration erhalten und wird nicht mehr befüllt).
-- **Profil-Trennung** (wichtig, durch Tests abgesichert): Nur explizit angewendete Prozesse
-  („Apply“) landen in `SavedProfiles`. Die bloße Prozess-Erkennung oder Fenster-Auswahl
-  speichert nichts.
+- File: `Documents\FrameBouncer\settings.json` (portable EXE, all user data at one fixed
+  place). Earlier storage locations (next to the EXE and `%APPDATA%\FrameBouncer`) are
+  migrated once and then removed.
+- Persisted: `TargetFps`, `SelectedProcess`, `IsTopmost`, `IsAutostartEnabled`,
+  `StartRtssWithApp`, `StartAfterburnerWithApp`, `Language`, `SavedProfiles` (new;
+  `SavedProcesses` remains only as a legacy field for migration and is no longer filled).
+- **Profile separation** (important, secured by tests): Only explicitly applied processes
+  ("Apply") end up in `SavedProfiles`. Mere process detection or window selection saves
+  nothing.
 
-## UI-Zyklen (MainViewModel)
+## UI cycles (MainViewModel)
 
-| Timer | Intervall | Aufgabe |
-|-------|-----------|---------|
-| `_frameTimer` | 25 ms | Frametime-Sample ziehen, Ringpuffer (120), Chart + Y-Skalierung (EMA) |
-| `_hardwareTimer` | 1 s | GPU/CPU-Temperatur, RTSS/Afterburner-Verbindungsstatus |
-| `_processRefreshTimer` | 3 s | Prozessliste auffrischen (gespeicherte Profile bleiben immer erhalten) |
+| Timer | Interval | Task |
+|-------|----------|------|
+| `_frameTimer` | 25 ms | Pull frame-time sample, ring buffer (120), chart + Y scaling (EMA) |
+| `_hardwareTimer` | 1 s | GPU/CPU temperature, RTSS/Afterburner connection status |
+| `_processRefreshTimer` | 3 s | Refresh process list (saved profiles always preserved) |
 
-## GitHub-Release & sicherer Updater
+## GitHub release & secure updater
 
-- **Updatequelle (Punkt 2):** GitHub Releases als einzige offizielle Quelle – kein eigener Server.
-  `UpdateConfiguration` bündelt Owner/Repository/Channel an GENAU EINER Stelle (aktuell
-  Platzhalter „FrameBouncer/FrameBouncer“ – vor dem ersten Release die echten Daten eintragen).
-  API: `GET https://api.github.com/repos/{owner}/{repo}/releases/latest` (nur HTTPS, Punkt 19;
-  TLS-Zertifikatsprüfung bleibt aktiv).
-- **Version (Punkt 3):** Eine zentrale Quelle – `<Version>1.0.0</Version>` im csproj erzeugt
-  Assembly-/File-/Produktversion identisch; `AppVersion.Current` liest sie für den Update-Checker;
-  das Release-Asset heißt `FrameBouncer-vX.Y.Z-win-x64.zip` (gleiche Version).
-- **Update-Check (Punkt 4/5/17):** `IGitHubReleaseService` → `GitHubReleaseService` verarbeitet
-  HTTP 200/404/403/429/5xx, Netzwerkfehler und ungültiges JSON als Status (nie werfend).
-  Prereleases werden ignoriert, Downgrades nie angeboten. Manuell per „⟳ Updates“-Button (ohne
-  Cooldown); beim App-Start automatisch, aber **max. 1×/24 h** (Cooldown in `settings.json`).
-- **Download (Punkt 7/19):** `IUpdateDownloader` → `UpdateDownloader` lädt zip + `.sha256`
-  ausschließlich über HTTPS nach `%LOCALAPPDATA%\FrameBouncer\Updates`.
-- **Verifikation (Punkt 8/9):** `IUpdateVerifier` → `UpdateVerifier` prüft SHA-256 gegen die
-  authentifizierte Release-Metadaten-Datei (`.sha256`-Asset desselben Releases) – niemals gegen
-  eingebettete Hashes. **Keine digitale Code-Signatur vorhanden**: `SignatureValidated` ist immer
-  false; die Meldung unterscheidet ehrlich „Hash validiert“ vs. „Signatur validiert“ (Punkt 9).
-- **Separater Updater (Punkt 10/14/15/24):** `IUpdateInstaller` startet `FrameBouncer.Updater.exe`
-  (eigenes Projekt, liegt neben der App; wird wie der ElevationHelper per Build-**und**
-  Publish-Target mitkopiert). Ablauf im `UpdateInstallerCore` (testbar, in Tests direkt
-  kompiliert): warten, bis der Prozess beendet UND die EXE nicht mehr gesperrt ist → Paket
-  validieren + entpacken (Path-Traversal-Schutz: keine `..`, keine absoluten/UNC-Pfade,
-  Punkt 25) → Backup der betroffenen Dateien → atomarer Ersatz pro Datei (Temp + `File.Replace`,
-  Punkt 12) → App-Neustart → Start-Überwachung; bei Fehler **Rollback** (Punkt 13, auch wenn die
-  neue Version nicht startet). Der Updater startet asInvoker und fordert **nur bei Bedarf**
-  (z. B. Program Files) einmalig erhöhte Rechte an – kein Dauer-Admin.
-- **Nur bekannte Programmbestandteile (Punkt 11/26/29):** Ersetzt werden ausschließlich Dateien,
-  die im Release-Paket enthalten sind (Whitelist). `settings.json` liegt in `%APPDATA%` und wird
-  nie angefasst; Backups/Logs/Benutzerdaten bleiben unberührt; keine Registry-/Treiber-/RTSS-/
-  Afterburner-/Spieleinstellungsänderungen. Die App selbst überschreibt sich nie (sie beendet
-  sich nach dem Updater-Start; `RequestForceExit` umgeht dabei auch den Tray-Modus).
-- **Offline (Punkt 18):** Ohne Internet funktionieren RTSS, Profile, Monitoring und alle
-  Kernfunktionen normal; nur der Checker zeigt „Keine Internetverbindung.“/„Update-Prüfung
-  nicht möglich.“.
-- **UI (Punkt 6/28):** „⟳ Updates“-Button im Header; bei verfügbarem Update erscheint „⬇ Update“;
-  Status in der Statuszeile („Neue Version verfügbar: vX.Y.Z“, „Du verwendest die neueste
-  Version.“, „Update konnte nicht verifiziert werden.“, …) – keine Stacktraces.
-- **Release-Workflow (Punkt 22):** `.github/workflows/release.yml` – Tag `vX.Y.Z` → Restore →
-  Build → **Test (muss grün sein)** → self-contained Publish (win-x64) von App, ElevationHelper
-  und Updater → Merge → `FrameBouncer-vX.Y.Z-win-x64.zip` + `.sha256` → GitHub-Release.
+- **Update source:** GitHub Releases as the only official source – no own server.
+  `UpdateConfiguration` bundles Owner/Repository/Channel at EXACTLY ONE place (currently
+  `Arimtak/FrameBouncer`). API: `GET https://api.github.com/repos/{owner}/{repo}/releases/latest`
+  (HTTPS only; TLS certificate validation stays active).
+- **Version:** One central source – `<Version>1.0.0</Version>` in the csproj produces
+  identical assembly/file/product versions; `AppVersion.Current` reads it for the update
+  checker; the release asset is named `FrameBouncer-vX.Y.Z-win-x64.zip` (same version).
+- **Update check:** `IGitHubReleaseService` → `GitHubReleaseService` handles HTTP
+  200/404/403/429/5xx, network errors and invalid JSON as status (never throwing).
+  Prereleases are ignored, downgrades never offered. Manual via "⟳ Updates" button (no
+  cooldown); automatically at app start, but **max. 1×/24 h** (cooldown in `settings.json`).
+- **Download:** `IUpdateDownloader` → `UpdateDownloader` downloads zip + `.sha256` exclusively
+  via HTTPS to `Documents\FrameBouncer\Updates`.
+- **Verification:** `IUpdateVerifier` → `UpdateVerifier` checks SHA-256 against the
+  authenticated release-metadata file (`.sha256` asset of the same release) – never against
+  embedded hashes. **No digital code signature present**: `SignatureValidated` is always
+  false; the message honestly distinguishes "hash validated" vs. "signature validated".
+- **Self-updater:** `IUpdateInstaller` copies the own (portable) EXE into a temp directory
+  and starts the copy in `--updater` mode – a running EXE cannot overwrite itself. Flow in
+  `UpdateInstallerCore` (testable, in the app under `Updater\UpdateInstallerCore.cs`): wait
+  until the process has exited AND the EXE is no longer locked (the own PID is excluded since
+  the updater itself runs as `FrameBouncer.exe`) → validate + extract package
+  (path-traversal protection: no `..`, no absolute/UNC paths) → backup of the affected files →
+  atomic replacement per file (temp + `File.Replace`) → app restart → start monitoring; on
+  error **rollback** (also when the new version does not start). The updater starts asInvoker
+  and requests elevated rights **only when needed** (e.g. Program Files) once – no permanent
+  admin.
+- **Only known program components:** Replaced exclusively are files contained in the release
+  package (whitelist). `settings.json` lives in `Documents\FrameBouncer` and is never touched;
+  backups/logs/user data remain untouched; no registry/driver/RTSS/Afterburner/game-setting
+  changes. The app itself never overwrites itself (it exits after the updater starts;
+  `RequestForceExit` bypasses tray mode).
+- **Offline:** Without internet, RTSS, profiles, monitoring and all core functions work
+  normally; only the checker shows "No internet connection."/"Update check not possible.".
+- **UI:** "⟳ Updates" button in the header; when an update is available "⬇ Update" appears;
+  status in the status bar ("New version available: vX.Y.Z", "You are using the latest
+  version.", "Update could not be verified.", …) – no stack traces.
+- **Release workflow:** `.github/workflows/release.yml` – tag `vX.Y.Z` → Restore → Build →
+  **Test (must be green)** → self-contained publish (win-x64) of the single EXE →
+  `FrameBouncer-vX.Y.Z-win-x64.zip` + `.sha256` → GitHub release.
 
 ## Tests
 
-`FrameBouncer.Tests` (xUnit, in der Solution enthalten) deckt ab:
+`FrameBouncer.Tests` (xUnit, included in the solution) covers:
 
-- Prozess-Filterung (Erkennen, Verschwinden, Auswahl-Erhalt) – `ProcessFilteringTests`
-- Profil-Trennung (Erkennen ≠ Speichern, nur „Apply“ persistiert) – `ProfileSeparationTests`
-- Fenster-Picker-Flows inkl. Abbruch – `WindowPickerTests`
+- Process filtering (detection, disappearance, selection preservation) – `ProcessFilteringTests`
+- Profile separation (detection ≠ saving, only "Apply" persists) – `ProfileSeparationTests`
+- Window-picker flows incl. cancel – `WindowPickerTests`
 
-## Kompatibilität, Abhängigkeiten & bekannte Grenzen
+## Compatibility, dependencies & known limits
 
-- **RTSS (Shared Memory, `RTSSSharedMemoryV2`):** Die Signatur (`0x52545353`) wird strikt
-  geprüft; Layout-Felder (Entry-Größe/-Offset/-Anzahl) kommen aus dem Header selbst und werden
-  nicht blind als feste Zahl angenommen (`RtssSharedMemoryHeader`). Die Versionsnummer (Offset 4)
-  wird gelesen und diagnostisch erfasst, aber **nicht** als exakte Zahl gegated: Eine gültige,
-  nur unbekannte RTSS-Version wird nicht fälschlich als „nicht unterstützt“ abgelehnt. Es gibt
-  keine öffentliche, verifizierte RTSS-Versionstabelle, daher ist die Kompatibilitätsgarantie
-  „V2-Layout + Signatur“, nicht eine bestimmte Versionsnummer. Ein RTSS-Ausfall (Shared Memory
-  nicht vorhanden / nicht lesbar) führt nie zu einem Crash – Monitoring und UI zeigen dann
-  ehrlich `--` bzw. „nicht verfügbar“.
-- **MSI Afterburner (MAHM Shared Memory):** Die Temperatur-Getter liefern `int?` – `null` heißt
-  „Sensor nicht verfügbar“. Fehlende Sensoren oder ein gestoppter Afterburner werden als `--`
-  angezeigt, **niemals** als `0 °C`. Der Dummy-Fallback (`DummyAfterburnerService`) meldet
-  `IsAfterburnerAvailable() == false` und `null`-Temperaturen (keine erfundenen Werte).
-- **ElevationHelper:** Wird per `ProjectReference` (`ReferenceOutputAssembly=false`) + Post-Build
-  `CopyElevationHelper`-Target **neben** die App-EXE kopiert (Debug **und** Release, inkl. `dotnet
-  publish`). `RtssService.FindElevationHelper` findet ihn dort zuverlässig; die alte
-  Debug-Pfad-Hebelleiste entfällt damit praktisch, bleibt aber als Fallback erhalten.
-- **Laufzeit / Release-Paket (Punkt 23):** Debug-/Dev-Builds sind framework-dependent (benötigen
-  die .NET 8 Desktop Runtime). Das **Release-Paket** des Workflows ist **self-contained win-x64**
-  (App + ElevationHelper + Updater, ~160 MB) und läuft ohne manuelle Runtime-Installation;
-  die größere Paketgröße ist bewusst akzeptiert und dokumentiert.
-- **Nicht implementierte Funktionen (ehrlich):** Es gibt keine verifizierte Quelle für den
-  **aktiven VRR-Status** und die **VRR-Technologie** (G-SYNC/FreeSync) — sie bleiben ehrlich
-  „Unbekannt“ (siehe VRR-Abschnitt). VRR taucht im Limiter-Modell nur als Konzept auf und wird
-  bewusst nicht als Limiter-Konflikt gewertet (VRR + V-Sync ist eine normale Konfiguration).
-  Es wird hier nichts als fertig dokumentiert, was nicht implementiert ist.
-- **Limiter-Konflikte:** Nur belegbare Quellen (RTSS-Status) werden erkannt; NVIDIA/AMD-Konkret-
-  Limits bleiben ehrlich **Unbekannt**; In-Game-Limiter nur über verifizierte Detectoren
-  (aktuell Source-1-`fps_max`), sonst **Unbekannt**; V-Sync je Ebene (siehe Abschnitt oben).
-- **Testabdeckung:** Kompatibilitäts-/Stabilitäts-Checks im `HardeningTests` (fehlender Sensor →
-  `--`, Dummy lügt nicht, Header-Signatur/-Version).
+- **RTSS (shared memory, `RTSSSharedMemoryV2`):** The signature (`0x52545353`) is strictly
+  checked; layout fields (entry size/offset/count) come from the header itself and are not
+  blindly assumed as fixed numbers (`RtssSharedMemoryHeader`). The version number (offset 4)
+  is read and recorded diagnostically, but **not** gated as an exact number: a valid, merely
+  unknown RTSS version is not wrongly rejected as "not supported". There is no public,
+  verified RTSS version table, so the compatibility guarantee is "V2 layout + signature",
+  not a specific version number. An RTSS failure (shared memory missing/unreadable) never
+  causes a crash – monitoring and UI then honestly show `--` / "not available".
+- **MSI Afterburner (MAHM shared memory):** The temperature getters return `int?` – `null`
+  means "sensor not available". Missing sensors or a stopped Afterburner are displayed as
+  `--`, **never** as `0 °C`. The dummy fallback (`DummyAfterburnerService`) reports
+  `IsAfterburnerAvailable() == false` and `null` temperatures (no invented values).
+- **Runtime / release package:** Debug/dev builds are framework-dependent (need the .NET 8
+  Desktop Runtime). The workflow's **release package** is **self-contained win-x64** (single
+  EXE, ~160 MB) and runs without manual runtime installation; the larger package size is
+  deliberately accepted and documented.
+- **Not implemented functions (honest):** There is no verified source for the **active VRR
+  status** and the **VRR technology** (G-SYNC/FreeSync) – they stay honestly "Unknown" (see
+  VRR section). VRR appears in the limiter model only as a concept and is deliberately not
+  counted as a limiter conflict (VRR + V-Sync is a normal configuration). Nothing is
+  documented here as finished that is not implemented.
+- **Limiter conflicts:** Only provable sources (RTSS status) are detected; NVIDIA/AMD concrete
+  limits stay honestly **Unknown**; in-game limiters only via verified detectors (currently
+  Source-1 `fps_max`), otherwise **Unknown**; V-Sync per level (see section above).
+- **Test coverage:** Compatibility/stability checks in `HardeningTests` (missing sensor →
+  `--`, dummy does not lie, header signature/version).

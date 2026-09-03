@@ -18,15 +18,15 @@ public class UpdateVerifier : IUpdateVerifier
         try
         {
             if (!File.Exists(zipPath))
-                return Task.FromResult(new UpdateVerificationResult { Error = "Update-Paket fehlt." });
+                return Task.FromResult(new UpdateVerificationResult { Error = Localization.T("Update.PackageMissing") });
             if (!File.Exists(sha256Path))
-                return Task.FromResult(new UpdateVerificationResult { Error = "Hash-Datei fehlt." });
+                return Task.FromResult(new UpdateVerificationResult { Error = Localization.T("Update.HashFileMissing") });
 
             // sha256sum-Format: "<hash>  <dateiname>" – nur der Hash ist relevant.
             var line = File.ReadAllText(sha256Path).Trim();
             var expected = line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
             if (string.IsNullOrWhiteSpace(expected) || expected.Length != 64)
-                return Task.FromResult(new UpdateVerificationResult { Error = "Ungültige Hash-Datei." });
+                return Task.FromResult(new UpdateVerificationResult { Error = Localization.T("Update.InvalidHashFile") });
 
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -43,12 +43,12 @@ public class UpdateVerifier : IUpdateVerifier
                 ComputedHash = computed,
                 ExpectedHash = expected,
                 SignatureValidated = false, // Code-Signatur ist derzeit NICHT vorhanden (Punkt 9)
-                Error = valid ? string.Empty : "SHA-256-Prüfung fehlgeschlagen – Update wird nicht installiert."
+                Error = valid ? string.Empty : Localization.T("Update.HashMismatch")
             });
         }
         catch (Exception ex)
         {
-            return Task.FromResult(new UpdateVerificationResult { Error = "Verifikation fehlgeschlagen: " + ex.Message });
+            return Task.FromResult(new UpdateVerificationResult { Error = Localization.TFmt("Update.VerifyFailedFmt", ex.Message) });
         }
     }
 }

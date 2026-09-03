@@ -11,7 +11,29 @@ public partial class App : Application
 {
     protected override void OnStartup(StartupEventArgs e)
     {
+        // Portable Single-EXE: --elevated-helper (RTSS-Profil-Write mit Rechten)
+        // und --updater (Update-Installation) laufen in DIESER EXE als spezielle
+        // Modi – ohne WPF-UI. Beide beenden sich mit einem Exit-Code.
+        if (e.Args.Length > 0 && e.Args[0] == "--elevated-helper")
+        {
+            // Sprache explizit durchreichen (--lang de|en), damit auch die
+            // Konsolen-Meldungen des Modus lokalisiert sind.
+            string? lang = e.Args.FirstOrDefault(a => a.StartsWith("--lang=", StringComparison.Ordinal));
+            if (lang is not null)
+                Localization.SetLanguage(lang["--lang=".Length..]);
+            Environment.Exit(Internal.ElevatedHelperMode.Run(e.Args.Skip(1).ToArray()));
+            return;
+        }
+        if (e.Args.Length > 0 && e.Args[0] == "--updater")
+        {
+            Environment.Exit(Internal.UpdaterMode.Run(e.Args.Skip(1).ToArray()));
+            return;
+        }
+
         base.OnStartup(e);
+
+        // Application language from settings.json before any UI exists.
+        Localization.SetLanguage(new JsonSettingsService().Load().Language);
 
         // Echte Services mit Fallback auf Dummies
         IRtssService rtssService = CreateRtssService();

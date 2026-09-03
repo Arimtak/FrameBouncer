@@ -23,12 +23,9 @@
   <ItemGroup>
     <ProjectReference Include="..\FrameBouncer\FrameBouncer.csproj" />
   </ItemGroup>
-
-  <!-- Testbarer Updater-Kern (Update-Spec Punkt 20): Der Installationskern wird
-       direkt mitkompiliert, damit Replace/Rollback/Path-Traversal gegen echte
-       Temp-Verzeichnisse getestet werden können. -->
-  <ItemGroup>
-    <Compile Include="..\FrameBouncer.Updater\UpdateInstallerCore.cs" Link="UpdateInstallerCore.cs" />
-  </ItemGroup>
+  <!-- Testbarer Updater-Kern (Update-Spec Punkt 20): Der Installationskern lebt
+       seit dem Single-EXE-Umbau in der App (FrameBouncer\Updater\UpdateInstallerCore.cs)
+       und wird über den Projektverweis mitkompiliert – Replace/Rollback/Path-Traversal
+       werden gegen echte Temp-Verzeichnisse getestet. -->
 
 </Project>

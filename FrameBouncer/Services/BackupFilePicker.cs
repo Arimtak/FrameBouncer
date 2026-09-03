@@ -1,3 +1,4 @@
+
 namespace FrameBouncer.Services;
 
 /// <summary>
@@ -13,8 +14,8 @@ public class BackupFilePicker : IBackupFilePicker
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
             FileName = suggestedFileName,
-            Filter = "FrameBouncer Profil-Backup (*.json)|*.json|Alle Dateien (*.*)|*.*",
-            Title = "Profil-Backup speichern"
+            Filter = Localization.T("Backup.Filter"),
+            Title = Localization.T("Backup.SaveTitle")
         };
         return dialog.ShowDialog() == true ? dialog.FileName : null;
     }
@@ -23,8 +24,8 @@ public class BackupFilePicker : IBackupFilePicker
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
-            Filter = "FrameBouncer Profil-Backup (*.json)|*.json|Alle Dateien (*.*)|*.*",
-            Title = "Profil-Backup wiederherstellen",
+            Filter = Localization.T("Backup.Filter"),
+            Title = Localization.T("Backup.OpenTitle"),
             CheckFileExists = true
         };
         return dialog.ShowDialog() == true ? dialog.FileName : null;

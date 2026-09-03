@@ -1,13 +1,15 @@
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 
 namespace FrameBouncer.Tests;
 
 /// <summary>
 /// Architektur-Garantien (Spezifikation Punkte 10, 13.13, 13.14):
-/// Die Hauptanwendung bleibt asInvoker (kein UAC beim Start), der
-/// ElevationHelper bleibt requireAdministrator, beide teilen sich den
-/// RtssProfileWriter, und RtssService nutzt genau diesen bestehenden Pfad
-/// (direkter Schreibversuch, Helper nur bei Zugriffsverweigerung).
+/// Die Anwendung ist EINE portable Single-EXE (asInvoker, kein UAC beim Start).
+/// Elevation und Update laufen in DERSELBEN EXE als eigene Modi
+/// (--elevated-helper / --updater) und teilen sich den RtssProfileWriter;
+/// RtssService nutzt genau diesen bestehenden Pfad (direkter Schreibversuch,
+/// eigener elevated Modus nur bei Zugriffsverweigerung).
 /// </summary>
 public class ArchitectureTests
 {
@@ -39,29 +41,34 @@ public class ArchitectureTests
         Assert.DoesNotContain("requireAdministrator", manifest);
     }
 
-    // Spec 10: Der Helper ist die EINZIGE Komponente, die elevated läuft.
+    // Spec 10: Elevation läuft in DERSELBEN EXE als eigener Modus (--elevated-helper),
+    // der App-Einstieg dispatched dorthin, bevor WPF startet.
     [Fact]
-    public void ElevationHelperManifest_IsRequireAdministrator()
+    public void SingleExe_DispatchesElevatedHelperModeBeforeWpf()
     {
-        string manifest = ReadProjectFile("FrameBouncer.ElevationHelper", "app.manifest");
+        string app = ReadProjectFile("FrameBouncer", "App.xaml.cs");
+        Assert.Contains("--elevated-helper", app);
+        Assert.Contains("ElevatedHelperMode.Run", app);
+        Assert.Contains("Environment.Exit", app);
 
-        Assert.Matches(
-            new Regex(@"requestedExecutionLevel\s+level=""requireAdministrator"""),
-            manifest);
+        // Der Modus startet NIE die WPF-UI (kein Fenster, keine Message-Pump):
+        // Der Dispatch-Block liegt VOR base.OnStartup und enthält kein mainWindow.
+        int dispatchStart = app.IndexOf("--elevated-helper", StringComparison.Ordinal);
+        int baseStartup = app.IndexOf("base.OnStartup", StringComparison.Ordinal);
+        Assert.True(dispatchStart >= 0 && baseStartup > dispatchStart);
+        string dispatch = app[dispatchStart..baseStartup];
+        Assert.DoesNotContain("mainWindow.Show", dispatch);
+        Assert.Contains("Environment.Exit", dispatch);
     }
 
-    // Spec 10: Helper und App teilen sich dieselbe Profil-Schreiblogik (keine zweite Implementation).
+    // Spec 10: Der elevated Modus teilt sich dieselbe Profil-Schreiblogik (keine zweite Implementation).
     [Fact]
-    public void ElevationHelper_SharesRtssProfileWriterWithApp()
+    public void ElevatedHelperMode_SharesRtssProfileWriterWithApp()
     {
-        string csproj = ReadProjectFile("FrameBouncer.ElevationHelper", "FrameBouncer.ElevationHelper.csproj");
+        string mode = ReadProjectFile("FrameBouncer", "Internal", "ElevatedHelperMode.cs");
 
-        Assert.Contains("RtssProfileWriter.cs", csproj);
-        Assert.Contains("<Compile Include", csproj);
-
-        // Der Helper ruft exakt RtssProfileWriter.SetFpsLimit auf
-        string program = ReadProjectFile("FrameBouncer.ElevationHelper", "Program.cs");
-        Assert.Contains("RtssProfileWriter.SetFpsLimit", program);
+        Assert.Contains("RtssProfileWriter.SetProfileLimit", mode);
+        Assert.Contains("RtssProfileWriter.SetFpsLimit", mode);
     }
 
     // Spec 10/13.13: RtssService nutzt den bestehenden Schreibpfad –
@@ -76,8 +83,9 @@ public class ArchitectureTests
         // Direkter Schreibversuch zuerst (aktives Profil)
         Assert.Contains("RtssProfileWriter.SetProfileLimit", source);
 
-        // Fallback startet den Helper mit expliciter Elevation
-        Assert.Contains("FrameBouncer.ElevationHelper.exe", source);
+        // Fallback startet DIE EIGENE EXE im --elevated-helper-Modus mit expliziter Elevation
+        Assert.Contains("--elevated-helper", source);
+        Assert.Contains("Environment.ProcessPath", source);
         Assert.Matches(new Regex(@"Verb\s*=\s*""runas"""), source);
 
         // Die Fallback-Auswahl hängt an Zugriffsverweigerung
@@ -123,14 +131,30 @@ public class ArchitectureTests
         Assert.Contains("UpdateProfiles", source);
     }
 
-    // Der Helper schreibt standardmäßig das AKTIVE Profil (writeLimit).
+    // Der elevated Modus schreibt standardmäßig das AKTIVE Profil (writeLimit).
     [Fact]
-    public void ElevationHelper_DefaultOperation_IsWriteLimit()
+    public void ElevatedHelperMode_DefaultOperation_IsWriteLimit()
     {
-        string program = ReadProjectFile("FrameBouncer.ElevationHelper", "Program.cs");
+        string mode = ReadProjectFile("FrameBouncer", "Internal", "ElevatedHelperMode.cs");
 
-        Assert.Contains("\"writeLimit\"", program);
-        Assert.Contains("RtssProfileWriter.SetProfileLimit", program);
+        Assert.Contains("\"writeLimit\"", mode);
+        Assert.Contains("RtssProfileWriter.SetProfileLimit", mode);
+    }
+
+    // Single-EXE: Update läuft als eigener Modus (--updater) und der Installer
+    // startet eine TEMP-KOPIE der eigenen EXE (eine laufende EXE kann sich
+    // nicht selbst überschreiben).
+    [Fact]
+    public void SingleExe_UpdateRunsAsSelfMode_FromTempCopy()
+    {
+        string app = ReadProjectFile("FrameBouncer", "App.xaml.cs");
+        Assert.Contains("--updater", app);
+        Assert.Contains("UpdaterMode.Run", app);
+
+        string installer = ReadProjectFile("FrameBouncer", "Services", "UpdateInstaller.cs");
+        Assert.Contains("--updater", installer);
+        Assert.Contains("Path.GetTempPath()", installer);
+        Assert.Contains("File.Copy", installer);
     }
 
     // Spec 13.14: Der App-Start-Launchpfad enthält kein "runas" (kein UAC beim Start)
@@ -169,16 +193,30 @@ public class ArchitectureTests
     // der Helper die Profiles-ACL für den aktuellen Benutzer (einmalig) – danach schreibt
     // FrameBouncer direkt, Apply UND Exit-Reset ohne weitere UAC.
     [Fact]
-    public void ElevationHelper_GrantsProfileWriteAccessAfterWrite()
+    public void ElevatedHelperMode_GrantsProfileWriteAccessAfterWrite()
     {
-        string program = ReadProjectFile("FrameBouncer.ElevationHelper", "Program.cs");
+        string mode = ReadProjectFile("FrameBouncer", "Internal", "ElevatedHelperMode.cs");
 
-        // Grant läuft NUR im Helper (elevated), nach erfolgreichem writeLimit
-        Assert.Contains("TryGrantProfileWriteAccess", program);
-        Assert.Contains("icacls.exe", program);
-        Assert.Contains("(OI)(CI)M", program);
+        // Grant läuft NUR im elevated Modus, nach erfolgreichem writeLimit
+        Assert.Contains("TryGrantProfileWriteAccess", mode);
+        Assert.Contains("icacls.exe", mode);
+        Assert.Contains("(OI)(CI)M", mode);
 
         // Fehler beim Grant sind non-fatal (Helper-Fallback bleibt erhalten)
-        Assert.Contains("best effort", program);
+        Assert.Contains("best effort", mode);
+    }
+
+    // Single-EXE-Selbstupdate: Der Updater läuft als FrameBouncer.exe (Temp-Kopie)
+    // und darf sich NICHT selbst als "noch laufende App" zählen.
+    [Fact]
+    public void RealProcessWaiter_ExcludesOwnProcessId()
+    {
+        var waiter = new FrameBouncer.Updater.RealProcessWaiter();
+        string ownName = Process.GetCurrentProcess().ProcessName;
+        string nonExistentExe = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".exe");
+
+        // Der eigene Prozess läuft (Name matcht) – ohne PID-Ausnahme würde das
+        // Timeout. Mit Ausnahme: sofort fertig.
+        Assert.True(waiter.WaitForExit(ownName, nonExistentExe, TimeSpan.FromSeconds(5)));
     }
 }

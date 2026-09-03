@@ -10,8 +10,8 @@ namespace FrameBouncer.Services;
 public interface IUpdateInstaller
 {
     /// <summary>
-    /// Startet FrameBouncer.Updater.exe (muss neben der App liegen) mit
-    /// Installationsverzeichnis, Paket und Version. Liefert sofort zurück.
+    /// Startet den Update-Modus der eigenen (portablen) EXE aus einer Temp-Kopie
+    /// (--updater) mit Installationsverzeichnis, Paket und Version. Liefert sofort zurück.
     /// </summary>
     UpdateLaunchResult LaunchUpdater(string installDir, string packageZip, string version);
 }

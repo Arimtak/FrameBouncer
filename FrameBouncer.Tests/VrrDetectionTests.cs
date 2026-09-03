@@ -14,8 +14,14 @@ namespace FrameBouncer.Tests;
 /// "Unbekannt" statt erfundener Werte, Multi-Monitor-Zielzuordnung, 10-s-Cache
 /// im 1-s-Tick (NIE im 25-ms-Frametiming), keine RTSS-/Profil-Schreibvorgänge.
 /// </summary>
-public class VrrDetectionTests
+public class VrrDetectionTests : IDisposable
 {
+    // Die VRR-Anzeige-Tests prüfen die deutschen Zustandstexte („Aktiv“,
+    // „Unbekannt“, „Technologie: …“) – deshalb explizit auf Deutsch umschalten.
+    // Dispose stellt Englisch wieder her (Tests laufen sequenziell).
+    public VrrDetectionTests() => FrameBouncer.Localization.SetLanguage("de");
+    public void Dispose() => FrameBouncer.Localization.SetLanguage("en");
+
     // --- Mocks (bestehender Stil, identisch zu den anderen Suiten) --------
 
     private class MockRtssService : IRtssService

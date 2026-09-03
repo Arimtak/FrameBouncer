@@ -34,4 +34,19 @@ public record AppSettings
 
     /// <summary>GitHub-Repository-Name der Updatequelle. null → Platzhalter-Konfiguration.</summary>
     public string? UpdateRepository { get; init; }
+
+    /// <summary>
+    /// Application language: "en" (default) or "de". Explicit setting — the
+    /// Windows system language is never auto-detected. Old settings files
+    /// without this value simply fall back to English.
+    /// </summary>
+    public string Language { get; init; } = "en";
+
+    /// <summary>
+    /// Show the anti-cheat note (RTSS process injection) in the UI? Default:
+    /// true. Users who only play single-player games can hide it via the ✕
+    /// button on the note; the choice is persisted here (default true for
+    /// existing settings files).
+    /// </summary>
+    public bool ShowAntiCheatNote { get; init; } = true;
 }
