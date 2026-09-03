@@ -7,6 +7,9 @@
 > schon installiert haben.
 >
 > Wie du es bedienst, steht unten unter **▶ So benutzt du FrameBouncer**.
+>
+> 👨‍💻 **Gebaut von Arimtak** – zusammen mit der KI (Codebuff) entwickelt.
+> Gemacht für Freunde, die ihre Spiele einfach und sauber limitieren wollen.
 
 ---
 
