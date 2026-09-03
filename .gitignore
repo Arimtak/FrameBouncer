@@ -1,0 +1,11 @@
+## .NET Core / Visual Studio
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Lokale Tool-/Preview-Artefakte (nicht ins öffentliche Repo)
+.freebuff/

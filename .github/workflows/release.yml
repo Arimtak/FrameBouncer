@@ -1,0 +1,82 @@
+name: Release
+
+# Release-Workflow (Spec Punkt 22): Ein Tag vX.Y.Z löst Build → Tests →
+# self-contained Publish (win-x64) → Release-Paket (zip + sha256) →
+# GitHub-Release aus. Das Release wird NUR erstellt, wenn Build UND Tests
+# erfolgreich sind (ein fehlschlagender Schritt bricht den Job ab).
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-test-publish:
+    name: Build, Test & Publish
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore FrameBouncer.sln
+
+      - name: Build (Release)
+        run: dotnet build FrameBouncer.sln -c Release --no-restore
+
+      - name: Test (alle Tests müssen grün sein)
+        run: dotnet test FrameBouncer.sln -c Release --no-build
+
+      - name: Publish App (self-contained, win-x64)
+        run: dotnet publish FrameBouncer/FrameBouncer.csproj -c Release -r win-x64 --self-contained true --no-restore -o publish/app
+
+      - name: Publish ElevationHelper (self-contained, win-x64)
+        run: dotnet publish FrameBouncer.ElevationHelper/FrameBouncer.ElevationHelper.csproj -c Release -r win-x64 --self-contained true --no-restore -o publish/helper
+
+      - name: Publish Updater (self-contained, win-x64)
+        run: dotnet publish FrameBouncer.Updater/FrameBouncer.Updater.csproj -c Release -r win-x64 --self-contained true --no-restore -o publish/updater
+
+      - name: Merge components into app folder
+        shell: pwsh
+        run: |
+          # WICHTIG: NUR die eigenen Dateien der Tools kopieren (exe/dll/deps/runtimeconfig/pdb),
+          # NIEMALS die Runtime-Dateien: Self-Contained-Publishes der Konsolen-Tools enthalten
+          # kleine Facade-Stubs (z.B. WindowsBase.dll, 16 KB), die per -Force die echten
+          # WPF-Assemblies der App überschreiben wuerden (Startcrash 0xE0434352).
+          Get-ChildItem publish/helper -Filter 'FrameBouncer.ElevationHelper.*' | Copy-Item -Destination publish/app -Force
+          Get-ChildItem publish/updater -Filter 'FrameBouncer.Updater.*' | Copy-Item -Destination publish/app -Force
+
+      - name: Determine version from tag
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag.TrimStart('v')
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding ascii
+
+      - name: Create release package (zip + sha256)
+        shell: pwsh
+        run: |
+          $zip = "FrameBouncer-v${{ steps.version.outputs.version }}-win-x64.zip"
+          Compress-Archive -Path publish/app/* -DestinationPath $zip -Force
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $zip" | Out-File -Encoding ascii "$zip.sha256"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh release create "${{ github.ref_name }}" `
+            "FrameBouncer-v${{ steps.version.outputs.version }}-win-x64.zip" `
+            "FrameBouncer-v${{ steps.version.outputs.version }}-win-x64.zip.sha256" `
+            --title "FrameBouncer ${{ github.ref_name }}" `
+            --notes "Automatisch erstelltes Release-Paket (self-contained win-x64).`n`nSHA-256 wird über die .sha256-Datei verifiziert (keine digitale Signatur)."

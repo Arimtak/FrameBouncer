@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>FrameBouncer.ElevationHelper</RootNamespace>
+    <AssemblyName>FrameBouncer.ElevationHelper</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <!-- Gemeinsame Profil-Logik mit der App (kein Duplikat) -->
+  <ItemGroup>
+    <Compile Include="..\FrameBouncer\Services\RtssProfileWriter.cs" Link="RtssProfileWriter.cs" />
+  </ItemGroup>
+
+</Project>

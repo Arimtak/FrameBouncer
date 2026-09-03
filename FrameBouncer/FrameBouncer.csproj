@@ -1,0 +1,67 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <RootNamespace>FrameBouncer</RootNamespace>
+    <AssemblyName>FrameBouncer</AssemblyName>
+    <ApplicationManifest Condition="Exists('app.manifest')">app.manifest</ApplicationManifest>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+
+    <!-- Zentrale Versionsquelle (Update-Spec Punkt 3): eine einzige Produktversion
+         für Assembly-, File-, Produktversion, Release-Asset und Update-Checker. -->
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OxyPlot.Wpf" Version="2.1.2" />
+  </ItemGroup>
+
+  <!-- Der ElevationHelper muss NEBEN der App-EXE liegen, damit RtssService ihn
+       im Produktivbild (build/publish) findet. ReferenceOutputAssembly=false
+       baut den Helper mit und kopiert seine Ausgabe in dieses Outputverzeichnis,
+       ohne ihn als Assembly zu referenzieren. -->
+  <ItemGroup>
+    <ProjectReference Include="..\FrameBouncer.ElevationHelper\FrameBouncer.ElevationHelper.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
+  </ItemGroup>
+
+  <!-- Der Updater muss NEBEN der App-EXE liegen (Update-Spec Punkt 10). -->
+  <ItemGroup>
+    <ProjectReference Include="..\FrameBouncer.Updater\FrameBouncer.Updater.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
+  </ItemGroup>
+
+  <!-- Helper und Updater (net8.0 Konsolen, apphost) brauchen auch ihre
+       .dll/.deps/.runtimeconfig neben der App. Die ProjectReferences allein
+       kopieren den apphost, aber nicht immer die Managed-Assemblys ->
+       explizit nachkopieren (Build UND Publish). -->
+  <Target Name="CopyUpdateComponents" AfterTargets="Build">
+    <ItemGroup>
+      <_UpdateComponents Include="$(MSBuildProjectDirectory)\..\FrameBouncer.ElevationHelper\bin\$(Configuration)\net8.0-windows\*;$(MSBuildProjectDirectory)\..\FrameBouncer.Updater\bin\$(Configuration)\net8.0-windows\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_UpdateComponents)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyUpdateComponentsToPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <_UpdateComponentsPublish Include="$(MSBuildProjectDirectory)\..\FrameBouncer.ElevationHelper\bin\$(Configuration)\net8.0-windows\*;$(MSBuildProjectDirectory)\..\FrameBouncer.Updater\bin\$(Configuration)\net8.0-windows\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_UpdateComponentsPublish)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+  <ItemGroup>
+    <Resource Include="app.ico" />
+    <None Update="app.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>
