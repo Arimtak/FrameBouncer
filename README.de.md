@@ -10,7 +10,7 @@ werden pro Spiel gespeichert und beim nächsten Start automatisch wieder angewen
 
 ## Screenshot
 
-![FrameBouncer-Oberfläche](docs/screenshot-v2.png)
+![FrameBouncer-Oberfläche](docs/screenshot-v3.png)
 
 ## Installation
 
@@ -81,6 +81,24 @@ Einfach die EXE löschen. Deine Einstellungen und Profile liegen unter
 `Dokumente\FrameBouncer` (`settings.json`, `Backups\`, `Updates\`) – auch diesen Ordner
 kannst du löschen. Die EXE selbst bleibt dabei jederzeit portabel: Alle Daten liegen
 immer in deinen Dokumenten, nie neben der EXE.
+
+## Haftungsausschluss
+
+FrameBouncer wird **"wie besehen" und ohne jegliche Garantie** bereitgestellt
+(siehe [LICENSE](LICENSE)).
+
+- Der Autor ist **nicht verantwortlich und nicht haftbar** für Folgen der
+  Nutzung dieses Programms – einschließlich, aber nicht beschränkt auf
+  **Anti-Cheat-Erkennungen, Spiel- oder Account-Sperrungen**, Systeminstabilität,
+  Performance-Probleme oder Datenverlust.
+- FPS-Begrenzung über RTSS bedeutet, dass Drittanbieter-Software (RivaTuner
+  Statistics Server) in Spielprozesse injiziert. Der Einsatz in Online- oder
+  Kompetitivspielen erfolgt **strikt auf eigenes Risiko** – siehe
+  [Anti-Cheat & Fair Play](#anti-cheat--fair-play).
+- FrameBouncer selbst schreibt nur RTSS-Profil-Dateien und liest Diagnosedaten.
+  Es verändert keine Spiele, Treiber oder Anti-Cheat-Software.
+- **Wenn du Online-Spiele spielst, nutze lieber den In-Game-Limiter oder einen
+  Treiber-Limiter** und entscheide selbst, ob du RTSS einsetzt.
 
 ## Lizenz
 

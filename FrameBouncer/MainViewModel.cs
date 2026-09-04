@@ -40,6 +40,14 @@ public class MainViewModel : INotifyPropertyChanged
     private readonly IUpdateVerifier? _updateVerifier;
     private readonly IUpdateInstaller? _updateInstaller;
     private UpdateCheckResult? _updateCheckResult;
+    private bool _isUpdateDownloading;
+    private double _updateDownloadProgressPercent;
+
+    /// <summary>
+    /// Verhindert parallele Update-Installationen (Doppelklick/mehrfaches Klicken
+    /// auf „⬇ Update“): Es darf nur EIN Download/Updater-Lauf gleichzeitig aktiv sein.
+    /// </summary>
+    private bool _isUpdating;
 
     private readonly DispatcherTimer _frameTimer;
     private readonly DispatcherTimer _hardwareTimer;
@@ -506,6 +514,20 @@ public class MainViewModel : INotifyPropertyChanged
     /// </summary>
     public async Task DownloadAndInstallUpdateAsync()
     {
+        if (_isUpdating) return; // Doppelklick-Schutz: nur ein Update-Lauf gleichzeitig
+        _isUpdating = true;
+        try
+        {
+            await DownloadAndInstallUpdateCoreAsync().ConfigureAwait(true);
+        }
+        finally
+        {
+            _isUpdating = false;
+        }
+    }
+
+    private async Task DownloadAndInstallUpdateCoreAsync()
+    {
         var check = _updateCheckResult;
         if (check?.Status != UpdateCheckStatus.UpdateAvailable || check.ZipAsset is null || check.ShaAsset is null
             || _updateDownloader is null || _updateVerifier is null || _updateInstaller is null)
@@ -519,11 +541,30 @@ public class MainViewModel : INotifyPropertyChanged
         {
             UpdateStatusText = Localization.T("Update.Downloading");
             OnPropertyChanged(nameof(UpdateStatusText));
+            IsUpdateDownloading = true;
+            UpdateDownloadProgressPercent = 0;
 
             // Update-Pakete gehören zu den Benutzerdaten (Dokumente\FrameBouncer\Updates)
             var downloadDir = UserDataPaths.UpdatesDirectory;
 
-            var download = await _updateDownloader.DownloadAsync(check.ZipAsset, check.ShaAsset, downloadDir).ConfigureAwait(true);
+            // Fortschritt (0..1 oder -1 = unbekannt) auf die UI-Properties abbilden.
+            var progress = new Progress<double>(fraction =>
+            {
+                if (fraction < 0)
+                {
+                    UpdateDownloadProgressPercent = 0;
+                    UpdateStatusText = Localization.T("Update.Downloading");
+                }
+                else
+                {
+                    UpdateDownloadProgressPercent = Math.Clamp(fraction * 100.0, 0, 100);
+                    UpdateStatusText = Localization.TFmt("Update.DownloadProgressFmt", Math.Round(UpdateDownloadProgressPercent));
+                }
+                OnPropertyChanged(nameof(UpdateStatusText));
+            });
+
+            var download = await _updateDownloader.DownloadAsync(check.ZipAsset, check.ShaAsset, downloadDir, progress).ConfigureAwait(true);
+            IsUpdateDownloading = false;
             if (!download.Success || download.ZipPath is null || download.Sha256Path is null)
             {
                 UpdateStatusText = Localization.T("Update.DownloadFailed");
@@ -535,6 +576,7 @@ public class MainViewModel : INotifyPropertyChanged
             if (!verification.IsValid)
             {
                 // Falscher Hash → NIE installieren (Punkt 8/11)
+                IsUpdateDownloading = false;
                 UpdateStatusText = Localization.T("Update.VerifyFailed");
                 OnPropertyChanged(nameof(UpdateStatusText));
                 return;
@@ -543,7 +585,14 @@ public class MainViewModel : INotifyPropertyChanged
             UpdateStatusText = Localization.T("Update.Installing");
             OnPropertyChanged(nameof(UpdateStatusText));
 
-            var launch = _updateInstaller.LaunchUpdater(AppContext.BaseDirectory, download.ZipPath, check.LatestVersion ?? string.Empty);
+            // WICHTIG (Single-File-Publish): AppContext.BaseDirectory zeigt bei einer
+            // Single-File-EXE auf den Self-Extract-Ordner in %TEMP% (.net\FrameBouncer\…)
+            // und NICHT auf den Ordner der EXE – dort darf NIE installiert werden.
+            // Der echte Installationsordner ist der Ordner von Environment.ProcessPath.
+            var installDir = Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
+            UpdaterLog.Write($"DownloadAndInstallUpdate: install-dir (aus ProcessPath)={installDir}");
+
+            var launch = _updateInstaller.LaunchUpdater(installDir, download.ZipPath, check.LatestVersion ?? string.Empty);
             if (!launch.Success)
             {
                 UpdateStatusText = Localization.T("Update.InstallFailedKeep");
@@ -557,6 +606,7 @@ public class MainViewModel : INotifyPropertyChanged
         }
         catch
         {
+            IsUpdateDownloading = false;
             UpdateStatusText = Localization.T("Update.InstallFailedKeep");
             OnPropertyChanged(nameof(UpdateStatusText));
         }
@@ -1079,8 +1129,15 @@ public class MainViewModel : INotifyPropertyChanged
     public string StatusFeedback
     {
         get => _statusFeedback;
-        private set => SetField(ref _statusFeedback, value);
+        private set
+        {
+            if (SetField(ref _statusFeedback, value))
+                OnPropertyChanged(nameof(HasStatusFeedback));
+        }
     }
+
+    /// <summary>True while a feedback message is shown; drives its dedicated status-bar row.</summary>
+    public bool HasStatusFeedback => !string.IsNullOrEmpty(_statusFeedback);
 
     public bool IsPickingWindow
     {
@@ -1114,11 +1171,56 @@ public class MainViewModel : INotifyPropertyChanged
     /// <summary>Wird gefeuert, wenn die App sich nach dem Updater-Start komplett beenden soll (Update).</summary>
     public event Action? RequestForceExit;
 
+    private string _updateStatusText = string.Empty;
+
     /// <summary>Benutzerfreundlicher Update-Status (Spec Punkt 28 – keine Stacktraces).</summary>
-    public string UpdateStatusText { get; private set; } = string.Empty;
+    public string UpdateStatusText
+    {
+        get => _updateStatusText;
+        private set
+        {
+            if (SetField(ref _updateStatusText, value))
+                OnPropertyChanged(nameof(IsUpdateStatusVisible));
+        }
+    }
 
     /// <summary>true, wenn ein neues Update heruntergeladen und installiert werden kann.</summary>
     public bool IsUpdateAvailable { get; private set; }
+
+    /// <summary>true, während das Update-Paket heruntergeladen wird (steuert die ProgressBar).</summary>
+    public bool IsUpdateDownloading
+    {
+        get => _isUpdateDownloading;
+        private set
+        {
+            if (SetField(ref _isUpdateDownloading, value))
+                OnPropertyChanged(nameof(IsUpdateStatusVisible));
+        }
+    }
+
+    /// <summary>Download-Fortschritt in Prozent (0..100) für die ProgressBar.</summary>
+    public double UpdateDownloadProgressPercent
+    {
+        get => _updateDownloadProgressPercent;
+        private set => SetField(ref _updateDownloadProgressPercent, value);
+    }
+
+    /// <summary>
+    /// true, wenn die Update-Zeile in der Statusleiste sichtbar sein soll
+    /// (Download läuft ODER es gibt eine Update-Meldung). Die Update-Zeile hat
+    /// eine EIGENE volle Zeile und überdeckt keine anderen Status-Texte.
+    /// </summary>
+    public bool IsUpdateStatusVisible => IsUpdateDownloading || !string.IsNullOrEmpty(_updateStatusText);
+
+    /// <summary>
+    /// Zeigt nach einem abgeschlossenen Update die einmalige Bestätigungsmeldung
+    /// (vom App-Start aufgerufen, wenn der UpdateMarker zur aktuellen Version passt).
+    /// </summary>
+    public void ShowUpdateInstalledMessage(string version)
+    {
+        UpdateStatusText = Localization.TFmt("Update.InstalledFmt", version);
+        OnPropertyChanged(nameof(UpdateStatusText));
+    }
 
     #endregion
 
@@ -1831,6 +1933,11 @@ public class MainViewModel : INotifyPropertyChanged
 
     private void SaveSettings()
     {
+        // Vorhandene Laufzeit-Metadaten (Update-Cooldown, letzte Version) ERHALTEN:
+        // Diese Felder gehören nicht zu den VM-Feldern und dürfen von einem
+        // normalen Save nicht auf alt/null zurückgesetzt werden – sonst würde der
+        // 24-h-Cooldown verlöschen und die "Update installiert"-Erkennung brechen.
+        var previous = _settingsService.Load();
         _settingsService.Save(new AppSettings
         {
             TargetFps = _targetFps,
@@ -1842,7 +1949,11 @@ public class MainViewModel : INotifyPropertyChanged
             SavedProcesses = new List<string>(),
             SavedProfiles = new List<GameProfile>(_savedProfiles),
             Language = Localization.LanguageCode,
-            ShowAntiCheatNote = _showAntiCheatNote
+            ShowAntiCheatNote = _showAntiCheatNote,
+            LastUpdateCheckUtc = previous.LastUpdateCheckUtc,
+            LastRunVersion = previous.LastRunVersion,
+            UpdateOwner = previous.UpdateOwner,
+            UpdateRepository = previous.UpdateRepository
         });
     }
 }

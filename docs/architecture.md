@@ -404,8 +404,15 @@ via `PostMessage`) so it reloads the profiles.
   embedded hashes. **No digital code signature present**: `SignatureValidated` is always
   false; the message honestly distinguishes "hash validated" vs. "signature validated".
 - **Self-updater:** `IUpdateInstaller` copies the own (portable) EXE into a temp directory
-  and starts the copy in `--updater` mode – a running EXE cannot overwrite itself. Flow in
-  `UpdateInstallerCore` (testable, in the app under `Updater\UpdateInstallerCore.cs`): wait
+  and starts the copy in `--updater` mode – a running EXE cannot overwrite itself. The
+  **install directory is always the folder of the running EXE** (`Environment.ProcessPath`),
+  never `AppContext.BaseDirectory` – for a single-file EXE that points to the self-extract
+  dir in `%TEMP%\.net\FrameBouncer\…` (which also ends in `=`, a character that breaks
+  hand-built command-line quoting: a trailing `\`/`=` before the closing quote swallows all
+  following arguments, causing a silent `Usage` exit). Arguments are therefore passed via
+  `ProcessStartInfo.ArgumentList` (robust quoting), and every updater step is written to
+  `Documents\FrameBouncer\Updates\updater.log` (regression-tested in `ArchitectureTests`).
+  Flow in `UpdateInstallerCore` (testable, in the app under `Updater\UpdateInstallerCore.cs`): wait
   until the process has exited AND the EXE is no longer locked (the own PID is excluded since
   the updater itself runs as `FrameBouncer.exe`) → validate + extract package
   (path-traversal protection: no `..`, no absolute/UNC paths) → backup of the affected files →

@@ -22,6 +22,7 @@ public class UpdateDownloader : IUpdateDownloader
         GitHubAssetInfo zipAsset,
         GitHubAssetInfo shaAsset,
         string destinationDir,
+        IProgress<double>? progress = null,
         CancellationToken cancellationToken = default)
     {
         try
@@ -40,9 +41,31 @@ public class UpdateDownloader : IUpdateDownloader
             {
                 if (!zipResponse.IsSuccessStatusCode)
                     return new UpdateDownloadResult { Error = Localization.TFmt("Update.DownloadFailedHttpFmt", (int)zipResponse.StatusCode) };
+
                 await using (var fs = File.Create(zipPath))
                 {
-                    await zipResponse.Content.CopyToAsync(fs, cancellationToken).ConfigureAwait(false);
+                    // Fortschritt nur, wenn der Server die Länge kennt (Content-Length);
+                    // sonst ehrlich indeterminiert (-1) statt erfundener Prozente.
+                    long? total = zipResponse.Content.Headers.ContentLength;
+                    progress?.Report(0);
+                    if (total is null or <= 0)
+                    {
+                        progress?.Report(-1);
+                        await zipResponse.Content.CopyToAsync(fs, cancellationToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await using var src = await zipResponse.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+                        var buffer = new byte[64 * 1024];
+                        long read = 0;
+                        int n;
+                        while ((n = await src.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken).ConfigureAwait(false)) > 0)
+                        {
+                            await fs.WriteAsync(buffer.AsMemory(0, n), cancellationToken).ConfigureAwait(false);
+                            read += n;
+                            progress?.Report((double)read / total.Value);
+                        }
+                    }
                 }
             }
 
@@ -56,6 +79,7 @@ public class UpdateDownloader : IUpdateDownloader
                 }
             }
 
+            progress?.Report(1.0);
             return new UpdateDownloadResult { Success = true, ZipPath = zipPath, Sha256Path = shaPath };
         }
         catch (HttpRequestException)

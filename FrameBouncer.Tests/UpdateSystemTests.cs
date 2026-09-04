@@ -462,6 +462,140 @@ public class UpdateSystemTests
         Assert.Empty(rtss.AppliedLimits);
     }
 
+    // ===================== Download-Fortschritt (%) =====================
+
+    [Fact]
+    public async Task UpdateDownloader_ReportsProgress_FromZeroToOne()
+    {
+        using var tmp = new TempDir();
+        var zipBytes = new byte[300 * 1024]; // > 64-KB-Buffer → mehrere Fortschrittsmeldungen
+        new Random(42).NextBytes(zipBytes);
+        var zipUrl = "https://github.com/FrameBouncer/FrameBouncer/releases/download/v1.1.0/FrameBouncer-v1.1.0-win-x64.zip";
+        var shaUrl = zipUrl + ".sha256";
+        var handler = new StubHttpMessageHandler(req =>
+        {
+            if (req.RequestUri!.ToString() == zipUrl)
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(zipBytes) };
+            if (req.RequestUri!.ToString() == shaUrl)
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("00") };
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+
+        var progress = new RecordingProgress();
+        var downloader = new UpdateDownloader(new HttpClient(handler));
+        var result = await downloader.DownloadAsync(
+            new GitHubAssetInfo { Name = "FrameBouncer-v1.1.0-win-x64.zip", BrowserDownloadUrl = zipUrl },
+            new GitHubAssetInfo { Name = "FrameBouncer-v1.1.0-win-x64.zip.sha256", BrowserDownloadUrl = shaUrl },
+            tmp.Path, progress);
+
+        Assert.True(result.Success);
+        Assert.NotEmpty(progress.Values);
+        Assert.Equal(0.0, progress.Values[0]);            // Start bei 0 %
+        Assert.Equal(1.0, progress.Values[^1]);           // Ende bei 100 %
+        Assert.Contains(progress.Values, v => v > 0 && v < 1); // echte Zwischenwerte
+        for (int i = 1; i < progress.Values.Count; i++)
+            Assert.True(progress.Values[i] >= progress.Values[i - 1]); // monoton
+    }
+
+    [Fact]
+    public async Task UpdateDownloader_NoContentLength_ReportsIndeterminate()
+    {
+        using var tmp = new TempDir();
+        var zipUrl = "https://github.com/FrameBouncer/FrameBouncer/releases/download/v1.1.0/pkg.zip";
+        var shaUrl = zipUrl + ".sha256";
+        var handler = new StubHttpMessageHandler(req =>
+        {
+            if (req.RequestUri!.ToString() == zipUrl)
+            {
+                // Content-Length: 0 → „Länge unbekannt“-Pfad (total <= 0 → -1).
+                // Hinweis: HttpClient berechnet Content-Length sonst selbst aus dem
+                // Content – ein fehlender Header ist über einen Stub-Handler nicht
+                // darstellbar, deshalb wird 0 gesetzt (gleiche Verzweigung).
+                var msg = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[1024]) };
+                msg.Content.Headers.ContentLength = 0;
+                return msg;
+            }
+            if (req.RequestUri!.ToString() == shaUrl)
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("00") };
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+
+        var progress = new RecordingProgress();
+        var downloader = new UpdateDownloader(new HttpClient(handler));
+        var result = await downloader.DownloadAsync(
+            new GitHubAssetInfo { Name = "pkg.zip", BrowserDownloadUrl = zipUrl },
+            new GitHubAssetInfo { Name = "pkg.zip.sha256", BrowserDownloadUrl = shaUrl },
+            tmp.Path, progress);
+
+        Assert.True(result.Success);
+        Assert.Contains(progress.Values, v => v < 0); // ehrlich indeterminiert (-1)
+    }
+
+    // ===================== Fortschritts-Verdrahtung (VM) =====================
+
+    [Fact]
+    public async Task DownloadAndInstall_ProgressIsWiredAndReset()
+    {
+        var gh = new FakeGitHubReleaseService(new UpdateCheckResult
+        {
+            Status = UpdateCheckStatus.UpdateAvailable,
+            LatestVersion = "v1.1.0",
+            ZipAsset = new GitHubAssetInfo { Name = "pkg.zip", BrowserDownloadUrl = "https://github.com/x/y/releases/download/v1.1.0/pkg.zip" },
+            ShaAsset = new GitHubAssetInfo { Name = "pkg.zip.sha256", BrowserDownloadUrl = "https://github.com/x/y/releases/download/v1.1.0/pkg.zip.sha256" }
+        });
+        var downloader = new FakeUpdateDownloader(); // liefert Fehler → Flow stoppt nach dem Download
+        var installer = new FakeUpdateInstaller();
+        var vm = CreateViewModel(gh, downloader, new FakeUpdateVerifier(), installer);
+
+        await vm.CheckForUpdatesAsync();
+        Assert.True(vm.IsUpdateAvailable);
+
+        await vm.DownloadAndInstallUpdateAsync();
+
+        Assert.NotNull(downloader.ProgressReceived); // Fortschritt wird durchgereicht
+        Assert.False(vm.IsUpdateDownloading);        // nach dem Download wieder aus
+        Assert.False(installer.Launched);            // Download-Fehler → kein Install
+        Assert.Contains("downloaded", vm.UpdateStatusText);
+    }
+
+    // ===================== Einmalige „Update installiert“-Meldung =====================
+
+    [Fact]
+    public void UpdateMarker_Consume_MatchesCurrentVersion_DeletesMarker()
+    {
+        using var tmp = new TempDir();
+        var marker = Path.Combine(tmp.Path, "last-update.txt");
+
+        UpdateMarker.WriteInstalledVersion("v1.2.0", marker);
+        Assert.True(File.Exists(marker));
+
+        Assert.True(UpdateMarker.TryConsumeInstalledVersion("1.2.0", marker));
+        Assert.False(File.Exists(marker)); // einmalige Meldung → Marker weg
+        Assert.False(UpdateMarker.TryConsumeInstalledVersion("1.2.0", marker)); // zweiter Aufruf: false
+    }
+
+    [Fact]
+    public void UpdateMarker_Consume_VersionMismatch_KeepsMarker()
+    {
+        using var tmp = new TempDir();
+        var marker = Path.Combine(tmp.Path, "last-update.txt");
+
+        UpdateMarker.WriteInstalledVersion("1.2.0", marker);
+
+        Assert.False(UpdateMarker.TryConsumeInstalledVersion("1.1.0", marker));
+        Assert.True(File.Exists(marker)); // bleibt für die neue Version erhalten
+    }
+
+    [Fact]
+    public void ShowUpdateInstalledMessage_SetsStatusWithVersion()
+    {
+        var vm = CreateViewModel();
+
+        vm.ShowUpdateInstalledMessage("1.2.0");
+
+        Assert.Contains("1.2.0", vm.UpdateStatusText);
+    }
+
     // ===================== Helfer =====================
 
     private static GitHubReleaseService CreateService(Func<HttpRequestMessage, HttpResponseMessage> responder)
@@ -548,9 +682,21 @@ public class UpdateSystemTests
     private sealed class FakeUpdateDownloader : IUpdateDownloader
     {
         public UpdateDownloadResult Result { get; set; } = new() { Error = "nicht konfiguriert" };
-        public Task<UpdateDownloadResult> DownloadAsync(GitHubAssetInfo zipAsset, GitHubAssetInfo shaAsset, string destinationDir, CancellationToken ct = default)
-            => Task.FromResult(Result);
+        public IProgress<double>? ProgressReceived { get; private set; }
+        public Task<UpdateDownloadResult> DownloadAsync(GitHubAssetInfo zipAsset, GitHubAssetInfo shaAsset, string destinationDir, IProgress<double>? progress = null, CancellationToken ct = default)
+        {
+            ProgressReceived = progress;
+            return Task.FromResult(Result);
+        }
     }
+
+    private sealed class RecordingProgress : IProgress<double>
+    {
+        public List<double> Values { get; } = new();
+        public void Report(double value) => Values.Add(value);
+    }
+
+
 
     private sealed class FakeUpdateVerifier : IUpdateVerifier
     {

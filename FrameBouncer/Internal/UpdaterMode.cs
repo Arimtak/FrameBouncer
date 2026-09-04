@@ -29,6 +29,7 @@ public static class UpdaterMode
 {
     public static int Run(string[] args)
     {
+        UpdaterLog.Write("Updater gestartet. Args: " + string.Join(" ", args.Select(a => a.Contains(' ') ? "\"" + a + "\"" : a)));
         try
         {
             // --lang=<code> (vom UpdateInstaller durchgereicht) vor der Auswertung
@@ -41,58 +42,79 @@ public static class UpdaterMode
             if (options is null)
             {
                 Console.Error.WriteLine(Localization.T("Update.Usage"));
+                UpdaterLog.Write("FEHLER: Argumente ungültig → Usage. Exit 1.");
                 return 1;
             }
 
             if (!Directory.Exists(options.InstallDir))
             {
                 Console.Error.WriteLine(Localization.TFmt("Update.InstallDirMissingFmt", options.InstallDir));
+                UpdaterLog.Write($"FEHLER: Installationsverzeichnis fehlt: {options.InstallDir}. Exit 1.");
                 return 1;
             }
             if (!File.Exists(options.Package))
             {
                 Console.Error.WriteLine(Localization.TFmt("Update.PackageMissingFmt", options.Package));
+                UpdaterLog.Write($"FEHLER: Update-Paket fehlt: {options.Package}. Exit 1.");
                 return 1;
             }
+
+            UpdaterLog.Write($"Installationsverzeichnis: {options.InstallDir} | Paket: {options.Package} | EXE: {options.AppExe}");
 
             // Beschreibbarkeit prüfen → bei Bedarf EINMALIG elevated neu starten (Punkt 24).
             if (!UpdateInstallerCore.CanWriteDirectory(options.InstallDir))
             {
-                if (!RelaunchElevated(args)) return 3;
+                UpdaterLog.Write("Installationsverzeichnis NICHT beschreibbar → elevierter Neustart (UAC).");
+                if (!RelaunchElevated(args))
+                {
+                    UpdaterLog.Write("FEHLER: UAC abgelehnt – Update abgebrochen. Exit 3.");
+                    return 3;
+                }
+                UpdaterLog.Write("Elevierter Neustart gestartet – diese Instanz beendet sich. Exit 0.");
                 return 0; // Die elevated Instanz übernimmt; diese beendet sich.
             }
+            UpdaterLog.Write("Installationsverzeichnis beschreibbar – keine Elevation nötig.");
 
             // Install-Backup gehört zu den Benutzerdaten (Dokumente\FrameBouncer\Updates)
             var backupRoot = UserDataPaths.UpdatesDirectory;
+            UpdaterLog.Write($"Install-Backup-Root: {backupRoot}");
 
             var result = UpdateInstallerCore.Install(
                 options.InstallDir,
                 options.Package,
                 backupRoot,
                 options.AppExe,
-                options.AppProcessName);
+                options.AppProcessName,
+                updatedVersion: options.Version); // Marker VOR dem App-Start (InstallCore)
 
             Console.WriteLine(result.Message);
+            UpdaterLog.Write($"Ergebnis: Success={result.Success} RolledBack={result.RolledBack} → \"{result.Message}\" Exit {(result.Success ? 0 : (result.RolledBack ? 2 : 3))}.");
             return result.Success ? 0 : (result.RolledBack ? 2 : 3);
         }
         catch (UnauthorizedAccessException)
         {
             // Rechte reichten erst mitten in der Installation – kontrolliert neu starten.
-            if (!RelaunchElevated(args)) return 3;
+            UpdaterLog.Write("UnauthorizedAccessException mitten in der Installation → elevierter Neustart.");
+            if (!RelaunchElevated(args))
+            {
+                UpdaterLog.Write("FEHLER: UAC abgelehnt – Update abgebrochen. Exit 3.");
+                return 3;
+            }
             return 0;
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine(Localization.TFmt("Update.FailedFmt", ex.Message));
+            UpdaterLog.Write($"UNBEHANDELTER FEHLER: {ex.GetType().Name}: {ex.Message}" + Environment.NewLine + ex.StackTrace);
             return 3;
         }
     }
 
-    private sealed record UpdaterOptions(string InstallDir, string Package, string AppExe, string AppProcessName);
+    private sealed record UpdaterOptions(string InstallDir, string Package, string AppExe, string AppProcessName, string? Version);
 
     private static UpdaterOptions? ParseArgs(string[] args)
     {
-        string? installDir = null, package = null;
+        string? installDir = null, package = null, version = null;
         string appExe = "FrameBouncer.exe";
         string appProcess = "FrameBouncer";
         for (int i = 0; i < args.Length - 1; i++)
@@ -103,11 +125,12 @@ public static class UpdaterMode
                 case "--package": package = args[++i]; break;
                 case "--app-exe": appExe = args[++i]; break;
                 case "--app-process": appProcess = args[++i]; break;
+                case "--version": version = args[++i]; break;
             }
         }
         if (string.IsNullOrWhiteSpace(installDir) || string.IsNullOrWhiteSpace(package)) return null;
 
-        return new UpdaterOptions(installDir, package, appExe, appProcess);
+        return new UpdaterOptions(installDir, package, appExe, appProcess, version);
     }
 
     /// <summary>
@@ -119,14 +142,17 @@ public static class UpdaterMode
     {
         try
         {
-            var joined = string.Join(' ', args.Select(a => "\"" + a + "\""));
-            using var _ = Process.Start(new ProcessStartInfo
+            // ArgumentList statt manuellem Quoting: Pfade mit trailing \ oder = würden
+            // sonst die Argumente zerlegen (CommandLine-Parser-Eigenheit von Windows).
+            var psi = new ProcessStartInfo
             {
                 FileName = Environment.ProcessPath!,
-                Arguments = "--updater " + joined,
                 UseShellExecute = true,
                 Verb = "runas" // Einmalige UAC-Abfrage, nur wenn Rechte fehlen
-            });
+            };
+            psi.ArgumentList.Add("--updater");
+            foreach (var a in args) psi.ArgumentList.Add(a);
+            using var _ = Process.Start(psi);
             return true;
         }
         catch

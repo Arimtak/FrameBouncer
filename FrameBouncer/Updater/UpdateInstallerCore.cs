@@ -69,7 +69,8 @@ public static class UpdateInstallerCore
         IUpdateProcessWaiter? waiter = null,
         IUpdateProcessStarter? starter = null,
         TimeSpan? waitExitTimeout = null,
-        TimeSpan? waitStartTimeout = null)
+        TimeSpan? waitStartTimeout = null,
+        string? updatedVersion = null)
     {
         waiter ??= new RealProcessWaiter();
         starter ??= new RealProcessStarter();
@@ -108,6 +109,12 @@ public static class UpdateInstallerCore
 
             // 4. Atomar ersetzen (Punkt 12)
             ReplaceFiles(installDir, entries);
+
+            // Einmalige „Update installiert“-Markierung JETZT schreiben – VOR dem
+            // App-Start. (Nach WaitForStart wäre zu spät: Die neue App liest die
+            // Markierung in OnStartup, während der Updater noch wartet.)
+            if (!string.IsNullOrWhiteSpace(updatedVersion))
+                Services.UpdateMarker.WriteInstalledVersion(updatedVersion);
 
             // 5. App neu starten (Punkt 15)
             if (!File.Exists(appExePath))
@@ -295,6 +302,8 @@ public sealed class RealProcessWaiter : IUpdateProcessWaiter
             if (!IsOtherProcessRunning(processName) && !IsFileLocked(exePath)) return true;
             Thread.Sleep(500);
         }
+        FrameBouncer.Services.UpdaterLog.Write(
+            $"WaitForExit TIMEOUT nach {(int)sw.Elapsed.TotalSeconds}s: Prozess \"{processName}\" läuft noch: {IsOtherProcessRunning(processName)}, EXE gesperrt: {IsFileLocked(exePath)}");
         return false;
     }
 
@@ -311,6 +320,8 @@ public sealed class RealProcessWaiter : IUpdateProcessWaiter
             if (consecutive >= 3) return true;
             Thread.Sleep(500);
         }
+        FrameBouncer.Services.UpdaterLog.Write(
+            $"WaitForStart TIMEOUT nach {(int)sw.Elapsed.TotalSeconds}s – neue App-Instanz wurde nicht (stabil) gestartet.");
         return false;
     }
 

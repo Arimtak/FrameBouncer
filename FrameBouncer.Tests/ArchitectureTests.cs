@@ -157,6 +157,25 @@ public class ArchitectureTests
         Assert.Contains("File.Copy", installer);
     }
 
+    // Regression (In-App-Update tat nichts): Bei einer Single-File-EXE zeigt
+    // AppContext.BaseDirectory auf den Self-Extract-Ordner in %TEMP%
+    // (.net\FrameBouncer\…) und NICHT auf den Ordner der EXE. Der Updater darf
+    // ausschließlich den Ordner von Environment.ProcessPath als Installations-
+    // verzeichnis verwenden. Außerdem muss das Argument-Quoting über
+    // ArgumentList aufgebaut werden – ein trailing \ direkt vor dem schließenden
+    // Anführungszeichen (BaseDirectory endet immer mit \) hätte alle folgenden
+    // Argumente verschluckt („Usage. Exit 1.“ ohne sichtbaren Fehler).
+    [Fact]
+    public void Update_InstallsIntoRealExeDirectory_WithRobustArgumentQuoting()
+    {
+        string vm = ReadProjectFile("FrameBouncer", "MainViewModel.cs");
+        Assert.Contains("Environment.ProcessPath", vm);
+
+        string installer = ReadProjectFile("FrameBouncer", "Services", "UpdateInstaller.cs");
+        Assert.Contains("ArgumentList", installer);
+        Assert.DoesNotContain("Arguments =", installer);
+    }
+
     // Spec 13.14: Der App-Start-Launchpfad enthält kein "runas" (kein UAC beim Start)
     // und keine blockierenden Sleeps auf dem UI-Thread.
     [Fact]

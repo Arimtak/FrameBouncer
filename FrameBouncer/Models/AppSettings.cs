@@ -20,6 +20,14 @@ public record AppSettings
     public bool StartAfterburnerWithApp { get; init; }
 
     /// <summary>
+    /// Version des letzten App-Laufs (z. B. "1.2.0"). Weicht sie beim nächsten Start
+    /// von der aktuellen Version ab, wurde die App aktualisiert → einmalige
+    /// "Update installiert"-Meldung. Unabhängig vom Updater (der stets aus der
+    /// alten Version stammt und das Marker-Feature noch nicht kennen kann).
+    /// </summary>
+    public string? LastRunVersion { get; init; }
+
+    /// <summary>
     /// Zeitpunkt des letzten automatischen Update-Checks (UTC) – Cooldown für den
     /// Start-Check (max. 1×/24 h, Spec Punkt 5). Manuelle Checks umgehen das.
     /// </summary>

@@ -11,9 +11,14 @@ public interface IUpdateDownloader
     /// Lädt zip + .sha256 in destinationDir. Liefert bei jedem Fehler
     /// <see cref="UpdateDownloadResult.Success"/> == false mit Benutzermeldung.
     /// </summary>
+    /// <param name="progress">
+    /// Optionaler Fortschritt des zip-Downloads als Anteil 0..1.
+    /// -1 bedeutet "Länge unbekannt" (indeterminierter Fortschritt).
+    /// </param>
     Task<UpdateDownloadResult> DownloadAsync(
         GitHubAssetInfo zipAsset,
         GitHubAssetInfo shaAsset,
         string destinationDir,
+        IProgress<double>? progress = null,
         CancellationToken cancellationToken = default);
 }

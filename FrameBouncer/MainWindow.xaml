@@ -729,6 +729,8 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
                     <!-- Zeile 1: Aktuelle FPS & Frametime sowie GPU & CPU Temps -->
@@ -798,18 +800,6 @@
                                        ToolTip="{Binding LimiterDetailsText}" />
                         </StackPanel>
 
-                        <!-- Update-Status + Status-Info / Feedback-Text -->
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding UpdateStatusText}"
-                                       FontSize="11"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       Margin="0,0,10,0"
-                                       MaxWidth="260"
-                                       TextTrimming="CharacterEllipsis" />
-                            <TextBlock Text="{Binding StatusFeedback}"
-                                       FontSize="11"
-                                       Foreground="{StaticResource TextSecondary}" />
-                        </StackPanel>
                     </Grid>
 
                     <!-- Zeile 4: VRR-Status des Zielmonitors auf eigener Zeile –
@@ -836,6 +826,54 @@
                                    FontWeight="SemiBold"
                                    Foreground="{StaticResource TextPrimary}"
                                    VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <!-- Zeile 5: Update-Download-Fortschritt (nur sichtbar, während geladen wird) -->
+                    <!-- Zeile 4.5: Status-Feedback (Apply/Backup/Prozesswahl etc.) auf
+                         EIGENER voller Zeile – überdeckt den Monitor-/VRR-Status nicht mehr. -->
+                    <TextBlock Grid.Row="4"
+                               Margin="0,4,0,0"
+                               FontSize="11"
+                               Foreground="{StaticResource TextSecondary}"
+                               Text="{Binding StatusFeedback, Mode=OneWay}"
+                               TextTrimming="None"
+                               TextWrapping="Wrap"
+                               Visibility="{Binding HasStatusFeedback, Converter={StaticResource BoolToVisibility}}" />
+
+                    <!-- Zeile 5: Update-Status mit EIGENER voller Zeile: gut lesbarer
+                         Text (kein Abschneiden, kein Überlappen anderer Status) +
+                         Fortschrittsbalken. Nur sichtbar, wenn es etwas zu sagen gibt
+                         (Download läuft / Check läuft / Ergebnis-Meldung). -->
+                    <StackPanel Grid.Row="5"
+                                Margin="0,6,0,0"
+                                Visibility="{Binding IsUpdateStatusVisible, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="{Binding UpdateStatusText, Mode=OneWay}"
+                                   FontSize="11"
+                                   FontWeight="Medium"
+                                   Foreground="{StaticResource TextPrimary}"
+                                   TextTrimming="None" />
+                        <ProgressBar Height="5"
+                                     Margin="0,4,0,0"
+                                     Maximum="100"
+                                     Value="{Binding UpdateDownloadProgressPercent, Mode=OneWay}"
+                                     Visibility="{Binding IsUpdateDownloading, Converter={StaticResource BoolToVisibility}}"
+                                     Foreground="{StaticResource AccentColor}"
+                                     Background="{StaticResource BgSecondary}"
+                                     BorderThickness="0">
+                            <ProgressBar.Template>
+                                <ControlTemplate TargetType="ProgressBar">
+                                    <Border Background="{TemplateBinding Background}" CornerRadius="2">
+                                        <Grid ClipToBounds="True">
+                                            <Border x:Name="PART_Track" Background="{TemplateBinding Background}" />
+                                            <Border x:Name="PART_Indicator"
+                                                    HorizontalAlignment="Left"
+                                                    Background="{TemplateBinding Foreground}"
+                                                    CornerRadius="2" />
+                                        </Grid>
+                                    </Border>
+                                </ControlTemplate>
+                            </ProgressBar.Template>
+                        </ProgressBar>
                     </StackPanel>
                 </Grid>
             </Border>

@@ -36,20 +36,35 @@ public class UpdateInstaller : IUpdateInstaller
             string updaterExe = Path.Combine(tempDir, "FrameBouncer.exe");
             File.Copy(sourceExe, updaterExe, overwrite: true);
 
+            // ArgumentList statt handgebautem Arguments-String: Windows' CommandLine-Parser
+            // behandelt ein \ direkt vor dem schließenden Anführungszeichen (z. B. Pfade mit
+            // trailing \ aus AppContext.BaseDirectory) als escaped – dadurch wurden alle
+            // folgenden Argumente verschluckt. ArgumentList quotet robust.
             var psi = new ProcessStartInfo
             {
                 FileName = updaterExe,
-                Arguments = $"--updater --lang={Localization.LanguageCode} --install-dir \"{installDir}\" --package \"{packageZip}\" --version \"{version}\"",
                 WorkingDirectory = installDir,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+            psi.ArgumentList.Add("--updater");
+            psi.ArgumentList.Add("--lang=" + Localization.LanguageCode);
+            psi.ArgumentList.Add("--install-dir");
+            psi.ArgumentList.Add(installDir);
+            psi.ArgumentList.Add("--package");
+            psi.ArgumentList.Add(packageZip);
+            psi.ArgumentList.Add("--version");
+            psi.ArgumentList.Add(version);
+
+            UpdaterLog.Write($"LaunchUpdater: Quell-EXE={sourceExe} → Kopie={updaterExe}");
+            UpdaterLog.Write($"LaunchUpdater: install-dir={installDir} | package={packageZip} | version={version}");
 
             Process.Start(psi);
             return new UpdateLaunchResult { Success = true };
         }
         catch (Exception ex)
         {
+            UpdaterLog.Write($"LaunchUpdater FEHLER: {ex.GetType().Name}: {ex.Message}");
             return new UpdateLaunchResult { Error = Localization.TFmt("Update.UpdaterLaunchFailedFmt", ex.Message) };
         }
     }

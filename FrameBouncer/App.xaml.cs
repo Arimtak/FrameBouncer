@@ -122,6 +122,29 @@ public partial class App : Application
         var mainWindow = new MainWindow(mainViewModel);
         mainWindow.Show();
 
+        // Nach einem abgeschlossenen Update: einmalige Bestätigungsmeldung anzeigen.
+        // Zwei Quellen, beide gegen die aktuelle Version geprüft:
+        // 1) UpdateMarker (vom Updater geschrieben, VOR dem App-Start)
+        // 2) Versionswechsel in settings.json (LastRunVersion ≠ aktuell) – robust auch
+        //    dann, wenn der Updater aus einer ÄLTEREN Version stammt, die das
+        //    Marker-Feature noch nicht kennt.
+        bool updated = UpdateMarker.TryConsumeInstalledVersion(AppVersion.Current);
+        var runSettings = settingsService.Load();
+        string? lastRunVersion = runSettings.LastRunVersion;
+        if (!updated &&
+            !string.IsNullOrWhiteSpace(lastRunVersion) &&
+            !string.Equals(AppVersion.Parse(lastRunVersion)?.ToString(), AppVersion.Parse(AppVersion.Current)?.ToString(), StringComparison.Ordinal))
+        {
+            updated = true;
+        }
+
+        // Aktuelle Version für den nächsten Lauf persistieren (best effort).
+        try { settingsService.Save(runSettings with { LastRunVersion = AppVersion.Current }); }
+        catch { /* Settings-Schreiben darf den Start nie blockieren */ }
+
+        if (updated)
+            mainViewModel.ShowUpdateInstalledMessage(AppVersion.Current);
+
         // Automatischer Update-Check beim Start: max. 1×/24 h (Spec Punkt 5),
         // silent (nur bei verfügbarem Update sichtbar), niemals blockierend.
         var startupSettings = settingsService.Load();

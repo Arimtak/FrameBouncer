@@ -105,6 +105,8 @@
   <data name="Update.CheckFailed" xml:space="preserve"><value>Update check not possible.</value></data>
   <data name="Update.NoUpdateToInstall" xml:space="preserve"><value>No update available to install.</value></data>
   <data name="Update.Downloading" xml:space="preserve"><value>Downloading update…</value></data>
+  <data name="Update.DownloadProgressFmt" xml:space="preserve"><value>Downloading update… {0}%</value></data>
+  <data name="Update.InstalledFmt" xml:space="preserve"><value>Update installed – you are now running version {0}.</value></data>
   <data name="Update.DownloadFailed" xml:space="preserve"><value>Update could not be downloaded.</value></data>
   <data name="Update.VerifyFailed" xml:space="preserve"><value>Update could not be verified.</value></data>
   <data name="Update.Installing" xml:space="preserve"><value>Installing update…</value></data>
